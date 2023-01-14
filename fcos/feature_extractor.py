@@ -66,7 +66,7 @@ class IntermediateLayerGetter(nn.ModuleDict):
 
 
 class FeatureExtractor(nn.Module):
-    def __init__(self, backbone):
+    def __init__(self, backbone, out_channels=256):
         super().__init__()
         self._backbone = backbone
         self._getter = IntermediateLayerGetter(
@@ -79,10 +79,10 @@ class FeatureExtractor(nn.Module):
         )
         self._fpn = torchvision.ops.FeaturePyramidNetwork(
             in_channels_list=[512, 1024, 2048],
-            out_channels=256,
+            out_channels=out_channels,
         )
-        self._conv1 = Conv2dBN(in_channels=256, out_channels=256, kernel=3, stride=2, padding=1)
-        self._conv2 = Conv2dBN(in_channels=256, out_channels=256, kernel=3, stride=2, padding=1)
+        self._conv1 = Conv2dBN(in_channels=out_channels, out_channels=out_channels, kernel=3, stride=2, padding=1)
+        self._conv2 = Conv2dBN(in_channels=out_channels, out_channels=out_channels, kernel=3, stride=2, padding=1)
 
     def forward(self, x):
         feature_maps = self._fpn(self._getter(x))
