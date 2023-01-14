@@ -1,5 +1,5 @@
 import torchvision
-from torchvision.models import resnet50, ResNet50_Weights
+from torchvision.models import *
 
 
 BACKBONES = {
