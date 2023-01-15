@@ -8,8 +8,8 @@ class FcosCore(nn.Module):
     def __init__(self, backbone, classes):
         super().__init__()
         self._fext = FeatureExtractor(backbone)
-        self._regression_heads = {name: RegressionHead(channels=256) for name in self._fext.feature_maps}
-        self._clf_heads = {name: ClassificationHead(classes, channels=256) for name in self._fext.feature_maps}
+        self._regression_heads = {name: RegressionHead(in_channels=256) for name in self._fext.feature_maps}
+        self._clf_heads = {name: ClassificationHead(classes, in_channels=256) for name in self._fext.feature_maps}
 
     def forward(self, x):
         out = {}
