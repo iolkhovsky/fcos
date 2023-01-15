@@ -4,18 +4,21 @@ from fcos.layers import Conv2dBN
 
 
 class RegressionHead(nn.Module):
-    def __init__(self, layers=4, channels=256):
+    def __init__(self, layers=4, in_channels=256, intermediate_channels=256):
         super().__init__()
         self.layers = [
-            Conv2dBN(
-                in_channels=channels,
-                out_channels=channels
-            )
-            for _ in range(layers)
+            Conv2dBN(in_channels, intermediate_channels)
         ]
+        self.layers.extend([
+            Conv2dBN(
+                in_channels=intermediate_channels,
+                out_channels=intermediate_channels
+            )
+            for _ in range(1, layers)
+        ])
         self.layers.append(
             Conv2dBN(
-                in_channels=channels,
+                in_channels=intermediate_channels,
                 out_channels=4,
                 activation='ReLU',
                 activation_pars={},
@@ -30,24 +33,27 @@ class RegressionHead(nn.Module):
 
 
 class ClassificationHead(nn.Module):
-    def __init__(self, classes, layers=4, channels=256):
+    def __init__(self, classes, layers=4, in_channels=256, intermediate_channels=256):
         super().__init__()
         self.neck = [
-            Conv2dBN(
-                in_channels=channels,
-                out_channels=channels,
-            )
-            for _ in range(layers)
+            Conv2dBN(in_channels, intermediate_channels)
         ]
+        self.neck.extend([
+            Conv2dBN(
+                in_channels=intermediate_channels,
+                out_channels=intermediate_channels,
+            )
+            for _ in range(1, layers)
+        ])
         self.logits_head = Conv2dBN(
-            in_channels=channels,
+            in_channels=intermediate_channels,
             out_channels=classes,
             activation='Sigmoid',
             activation_pars={},
             bias_pi=0.01,
         )
         self.centerness_head = Conv2dBN(
-            in_channels=channels,
+            in_channels=intermediate_channels,
             out_channels=1,
             activation='Sigmoid',
             activation_pars={},
