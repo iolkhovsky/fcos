@@ -6,7 +6,7 @@ class FcosPostprocessor(nn.Module):
     def __init__(self, codec):
         super().__init__()
         self._codec = codec
-        self._level_scales = {f'P{idx}': 2 ** idx for idx in range(3, 7)}
+        self._level_scales = {f'P{idx}': 2 ** idx for idx in range(3, 7 + 1)}
 
     @staticmethod
     def bchw_to_bnc(tensor):
@@ -32,11 +32,9 @@ class FcosPostprocessor(nn.Module):
         out = {}
         for level, ((cls, cntr), ltrb) in core_predictions.items():
             map_scales = img_scales * self._level_scales[level]
-            out[level] = (
-                (
-                    FcosPostprocessor.bchw_to_bnc(cls),
-                    FcosPostprocessor.bchw_to_bnc(cntr),
-                ),
-                self._codec.decode(ltrb, map_scales)
-            )
+            out[level] = {
+                'classes': FcosPostprocessor.bchw_to_bnc(cls),
+                'centerness': FcosPostprocessor.bchw_to_bnc(cntr),
+                'boxes': self._codec.decode(ltrb, map_scales),
+            }
         return out

@@ -2,6 +2,7 @@ from torch import nn
 
 from fcos.preprocessor import FcosPreprocessor
 from fcos.core import FcosCore
+from fcos.codec import FcosDetectionsCodec
 from fcos.postprocessor import FcosPostprocessor
 
 
@@ -11,14 +12,7 @@ class FCOS(nn.Module):
         self._labels = labels_codec
         self._preprocessor = FcosPreprocessor(res)
         self._core = FcosCore(backbone, len(self._labels))
-        feature_maps = {
-            'P3': (64, 64),
-            'P4': (32, 32),
-            'P5': (16, 16),
-            'P6': (8, 8),
-            'P7': (4, 4),
-        }
-        self._postprocessor = FcosPostprocessor(res, feature_maps, self._labels)
+        self._postprocessor = FcosPostprocessor(codec=FcosDetectionsCodec())
 
     def forward(self, x):
         preprocessed_inputs, scales = self._preprocessor(x)

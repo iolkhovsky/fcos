@@ -1,6 +1,6 @@
 import torch
 
-from fcos.postptocessor import *
+from fcos.postprocessor import *
 from fcos.codec import FcosDetectionsCodec
 
 
@@ -20,7 +20,8 @@ def test_postprocessor():
 
     outs = postprocessor(test_inputs, scales)
 
-    for level, ((cls, cntr), regr) in outs.items():
+    for level, maps in outs.items():
+        cls, cntr, regr = maps['classes'], maps['centerness'], maps['boxes']
         assert list(cls.shape) == [batch_size, width * height, classes]
         assert list(cntr.shape) == [batch_size, width * height, 1]
         assert list(regr.shape) == [batch_size, width * height, 4]
