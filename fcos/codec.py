@@ -44,5 +44,13 @@ class FcosDetectionsCodec(nn.Module):
         )
         return torch.reshape(boxes, [b, h * w, -1])
 
-    def encode(self):
+    def encode(self, boxes, labels):
+        # 1. Lets scale input boxes to input resolution
+        # 2. Crete zero filled output tensors
+        # 3. For each image:
+        # 4.    Lets sort boxes in descent order (large boxes -> small boxes)
+        # 5.    For eact box let's find target area
+        #           and fill targets (set logit to 1)
+        #           compute ltrb for each location - set them
+        #           fill centernes according ltrb
         raise RuntimeError("Not implemented")
