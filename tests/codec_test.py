@@ -19,7 +19,7 @@ def test_codec_centers():
 
 
 def test_codec_decode():
-    codec = FcosDetectionsCodec()
+    codec = FcosDetectionsCodec((256, 256), None)
 
     scales = torch.tensor([(1., 2.), (3., 4.)])
     test_data = torch.tensor(

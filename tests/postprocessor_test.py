@@ -5,7 +5,7 @@ from fcos.codec import FcosDetectionsCodec
 
 
 def test_postprocessor():
-    codec = FcosDetectionsCodec()
+    codec = FcosDetectionsCodec((256, 256), None)
     postprocessor = FcosPostprocessor(codec)
 
     scales = [(1, 1), (2, 2)]

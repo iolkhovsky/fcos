@@ -10,9 +10,10 @@ class FCOS(nn.Module):
     def __init__(self, backbone, labels_codec, res=(512, 512)):
         super().__init__()
         self._labels = labels_codec
+        self._codec = FcosDetectionsCodec(res, labels_codec)
         self._preprocessor = FcosPreprocessor(res)
         self._core = FcosCore(backbone, len(self._labels))
-        self._postprocessor = FcosPostprocessor(codec=FcosDetectionsCodec())
+        self._postprocessor = FcosPostprocessor(codec=self._codec)
 
     def forward(self, x):
         preprocessed_inputs, scales = self._preprocessor(x)
