@@ -1,6 +1,9 @@
 import torch
+import numpy as np
 
-from fcos.codec import FcosDetectionsCodec
+from fcos import FcosDetectionsCodec
+from fcos.codec import box_centerness
+from dataset import LabelsCodec
 
 
 def test_codec_centers():
@@ -55,3 +58,84 @@ def test_codec_decode():
             assert ymin == y_center - top
             assert xmax == x_center + right
             assert ymax == y_center + bottom
+
+
+def test_box_centerness():
+    test_boxes = [
+        [1, 1, 1, 1],
+        [1, 1, 2, 2],
+        [0, 1, 2, 2], 
+    ]
+
+    for box in test_boxes:
+        l, t, r, b = box
+        target = np.sqrt(
+            (min(l, r) * min(t, b)) / (max(l, r) * max(t, b))
+        )
+        assert abs(target - box_centerness(torch.tensor(box))) < 1e-4
+
+
+def test_codec_encode():
+    img_res = (256, 256)
+    labels_codec = LabelsCodec()
+    codec = FcosDetectionsCodec(img_res, labels_codec)
+
+    test_boxes = [
+        torch.tensor([
+            [50, 60, 110, 210],
+            [30, 70, 40, 80],
+            [100, 200, 110, 210],
+        ]),
+        torch.zeros([0, 4]),
+        torch.tensor([
+            [0, 0, 256, 256],
+            [180, 200, 200, 230],
+        ]),
+    ]
+
+    test_labels = [
+        torch.tensor([0, 7, 10]),
+        torch.zeros([0, 1]),
+        torch.tensor([2, 3]),
+    ]
+
+    classes, centerness, boxes = codec.encode(test_boxes, test_labels)
+
+    for level, tensor in classes.items():
+        b, c, h, w = tensor.shape
+        print(level, b, c, h, w)
+        for img_idx in range(b):
+            for y_pos in range(h):
+                for x_pos in range(w):
+                    scores = tensor[img_idx, :, y_pos, x_pos]
+                    positive_position = torch.any(scores)
+                    if positive_position:
+                        assert len(test_boxes[img_idx]) > 0
+
+                        pos_center_x = (x_pos + 0.5) * codec._level_scales[level]
+                        pos_center_y = (y_pos + 0.5) * codec._level_scales[level]
+
+                        ltrb = boxes[level][img_idx, :, y_pos, x_pos]
+
+                        smallest_box = None
+                        for gt_box, gt_label in zip(test_boxes[img_idx], test_labels[img_idx]):
+                            x1, y1, x2, y2 = gt_box
+                            if (x1 <= pos_center_x <= x2) and (y1 <= pos_center_y <= y2):
+                                regr_min, regr_max = codec._regression_targets[level]
+                                if regr_min <= max(ltrb) < regr_max:
+                                    assert scores[gt_label] == 1
+                                    if (smallest_box is None) or ((x2 - x1) * (y2 - y1) < smallest_box):
+                                        smallest_box = gt_box
+                        
+                        enc_l, enc_t, enc_r, enc_b = ltrb
+                        decoded_box = torch.tensor([
+                            pos_center_x - enc_l,
+                            pos_center_y - enc_t,
+                            pos_center_x + enc_r,
+                            pos_center_y + enc_b,
+                        ])
+
+                        assert torch.all(torch.eq(decoded_box, torch.tensor(smallest_box)))
+                                               
+                        centerness_score = centerness[level][img_idx, 0, y_pos, x_pos]
+                        assert centerness_score == box_centerness(ltrb)
