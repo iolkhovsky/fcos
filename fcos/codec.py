@@ -136,9 +136,10 @@ class FcosDetectionsCodec(nn.Module):
                             centerness, ltrb = self._encode_box_at(box, map=feature_map, y=y_pos, x=x_pos)
                             centerness_tensor[feature_map][img_idx, y_pos, x_pos, 0] = centerness
                             ltrb_tensor = torch.tensor(ltrb, dtype=torch.float32)
-                            if regression_min <= max(ltrb_tensor) < regression_max:
-                                boxes_tensor[feature_map][img_idx, y_pos, x_pos] = ltrb_tensor
-                            else:
+                            boxes_tensor[feature_map][img_idx, y_pos, x_pos] = ltrb_tensor
+                            max_regression_value = max(ltrb_tensor)
+
+                            if max_regression_value < regression_min or max_regression_value > regression_max:
                                 classes_tensor[feature_map][img_idx, y_pos, x_pos, label] = 0
 
         for feature_map in classes_tensor.keys():

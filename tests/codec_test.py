@@ -117,15 +117,23 @@ def test_codec_encode():
 
                         ltrb = boxes[level][img_idx, :, y_pos, x_pos]
 
-                        smallest_box = None
+                        smallest_box, smallest_label = None, None
                         for gt_box, gt_label in zip(test_boxes[img_idx], test_labels[img_idx]):
                             x1, y1, x2, y2 = gt_box
-                            if (x1 <= pos_center_x <= x2) and (y1 <= pos_center_y <= y2):
+                            if (x1 < pos_center_x < x2) and (y1 < pos_center_y < y2):
                                 regr_min, regr_max = codec._regression_targets[level]
                                 if regr_min <= max(ltrb) < regr_max:
-                                    assert scores[gt_label] == 1
-                                    if (smallest_box is None) or ((x2 - x1) * (y2 - y1) < smallest_box):
+                                    if smallest_box is None:
                                         smallest_box = gt_box
+                                        smallest_label = gt_label
+                                    else:
+                                        sm_x1, sm_y1, sm_x2, sm_y2 = smallest_box
+                                        sm_area = (sm_x2 - sm_x1) * (sm_y2 - sm_y1)
+                                        if ((x2 - x1) * (y2 - y1) < sm_area):
+                                            smallest_box = gt_box
+                                            smallest_label = gt_label
+                        
+                        assert scores[smallest_label] == 1
                         
                         enc_l, enc_t, enc_r, enc_b = ltrb
                         decoded_box = torch.tensor([
