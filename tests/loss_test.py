@@ -3,7 +3,7 @@ import pytest
 import torch
 from torchvision.ops.focal_loss import sigmoid_focal_loss
 
-from fcos import FocalLoss, CenternessLoss
+from fcos import FocalLoss, CenternessLoss, IoULoss
 
 
 def test_focal_loss():
@@ -66,8 +66,46 @@ def test_centerness_loss():
 
 
 def test_iou_loss():
-    pass
+    predicted_ltrb = [
+        [1., 2., 3., 4.],
+        [0., 0., 1., 1.],
+        [10., 10., 5., 5.],
+    ]
+    predicted_ltrb = torch.from_numpy(np.asarray(predicted_ltrb, dtype=np.float32))
 
+    target_ltrb = [
+        [2., 3., 5., 7.],
+        [1., 1., 2., 2.],
+        [10., 10., 5., 5.],
+    ]
+    target_ltrb = torch.from_numpy(np.asarray(target_ltrb, dtype=np.float32))
 
-def test_fcos_loss():
-    pass
+    criterion = IoULoss()
+    loss = criterion(
+        pred=predicted_ltrb,
+        target=target_ltrb,
+    )
+
+    def iou(box_1, box_2):
+        l1, t1, r1, b1 = box_1
+        l2, t2, r2, b2 = box_2
+
+        inter_l = min(l1, l2)
+        inter_r = min(r1, r2)
+        inter_t = min(t1, t2)
+        inter_b = min(b1, b2)
+
+        inter_xsz = inter_l + inter_r
+        inter_ysz = inter_t + inter_b
+
+        inter = inter_xsz * inter_ysz
+        area_1 = (l1 + r1) * (t1 + b1)
+        area_2 = (l2 + r2) * (t2 + b2)
+        union = area_1 + area_2 - inter
+        return inter / union
+
+    target_loss = 0.
+    for pred_box, targets_box in zip(predicted_ltrb, target_ltrb):
+        target_loss += 1. - iou(pred_box, targets_box)
+
+    assert torch.sum(loss) == pytest.approx(target_loss, 1e-5)
