@@ -3,7 +3,7 @@ import pytest
 import torch
 from torchvision.ops.focal_loss import sigmoid_focal_loss
 
-from fcos import FocalLoss
+from fcos import FocalLoss, CenternessLoss
 
 
 def test_focal_loss():
@@ -50,7 +50,19 @@ def test_focal_loss_legacy():
 
 
 def test_centerness_loss():
-    pass
+    predicted = torch.from_numpy(np.asarray([[0.05, 0.5, 0.999], [0.3, 0.91, 0.17]], dtype=np.float32))
+    targets = torch.from_numpy(np.asarray([[0.1, 1., 0.], [0.7, 0.6, 0.33]], dtype=np.float32))
+
+    loss = CenternessLoss()(pred=predicted, target=targets)
+
+    target_loss = 0.
+    for pred_vector, targets_vector in zip(predicted, targets):
+        for p, t in zip(pred_vector, targets_vector):
+            item_loss = -(t * torch.log(p) + (1 - t) * torch.log(1 - p))
+            target_loss += item_loss
+    target_loss = target_loss.item()
+
+    assert torch.sum(loss) == pytest.approx(target_loss, 1e-5)
 
 
 def test_iou_loss():
