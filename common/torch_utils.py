@@ -20,4 +20,4 @@ def get_available_device(verbose=True):
 def tensor2numpy(tensor):
     if tensor.requires_grad:
         tensor = tensor.detach()
-    return tensor.numpy()
+    return tensor.cpu().numpy()
