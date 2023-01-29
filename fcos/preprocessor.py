@@ -12,6 +12,7 @@ class FcosPreprocessor(nn.Module):
             mean=[0.485, 0.456, 0.406],
             std=[0.229, 0.224, 0.225]
         )
+        self._dynamic_range = 255.
 
     def _prepare_single_image(self, tensor_or_array):
         assert len(tensor_or_array.shape) == 3
@@ -42,5 +43,6 @@ class FcosPreprocessor(nn.Module):
         b, c, h, w = tensors.shape
         assert c == 3 and h == self._height and w == self._width and b > 0, \
             f"b, h, w, c = {b, h, w, c}"
+        tensors /= self._dynamic_range
         normalized_tensors = self._normalize(tensors)
         return normalized_tensors, scales
