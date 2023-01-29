@@ -1,13 +1,14 @@
 import numpy as np
 import torch
 from torch import nn
+from torch.nn import init
 
 
 class Conv2dBN(nn.Module):
     def __init__(self, in_channels, out_channels, kernel=3, stride=1,
                  padding=1, bias=True, bias_value=None, bias_pi=None,
                  activation='LeakyReLU', activation_pars={'negative_slope': 0.01},
-                 batch_norm=True):
+                 batch_norm=True, initializer=None):
         super().__init__()
         self.conv = nn.Conv2d(
             in_channels=in_channels,
@@ -21,6 +22,8 @@ class Conv2dBN(nn.Module):
             bias_value = -1. * np.log((1. - bias_pi) / bias_pi)
         if bias_value:
             self.conv.bias.data.fill_(bias_value)
+        if initializer:
+            initializer(self.conv.weight)
 
         self.act = None
         if activation:
