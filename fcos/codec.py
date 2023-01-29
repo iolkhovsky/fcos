@@ -45,10 +45,12 @@ class FcosDetectionsCodec(nn.Module):
         raise RuntimeError("Not implemented")
 
     def decode(self, ltrb_map, scales):
+        device = ltrb_map.device
+
         b, _, h, w = ltrb_map.shape
         ltrb_map = torch.permute(ltrb_map, [0, 2, 3, 1])  # bchw -> bhwc
 
-        centers = FcosDetectionsCodec._generate_centers(h, w, scales)
+        centers = FcosDetectionsCodec._generate_centers(h, w, scales).to(device)
         centers_y, centers_x = centers[:, :, :, 0], centers[:, :, :, 1]
         centers_y = centers_y[..., None]
         centers_x = centers_x[..., None]

@@ -45,6 +45,7 @@ class ClassificationHead(nn.Module):
             )
             for _ in range(1, layers)
         ])
+        self.neck = nn.ModuleList(self.neck)
         self.logits_head = Conv2dBN(
             in_channels=intermediate_channels,
             out_channels=classes,
