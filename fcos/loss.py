@@ -59,5 +59,45 @@ class FcosLoss(nn.Module):
         self._cntr_loss = CenternessLoss()
         self._regr_loss = IoULoss()
 
-    def forward(self, pred, target):     
-        pass
+    def forward(self, pred, target, aggregator='sum'):     
+        aggregator = getattr(torch, aggregator)
+        
+        target_classes = target['classes']
+        target_boxes = target['boxes']
+        target_centerness = target['centerness']
+
+        pred_classes = pred['classes']
+        pred_boxes = pred['boxes']
+        pred_centerness = pred['centerness']
+        
+        positive_samples = torch.sum(target_classes, axis=-1)  
+        positive_mask = positive_samples > 0
+        positive_samples_cnt = torch.sum(positive_mask)
+        print("Positive samples cnt:", positive_samples_cnt)
+        if positive_samples_cnt == 0:
+            return None
+        
+        class_loss = self._clf_loss(
+            pred_classes,
+            target_classes.to(pred_classes.device),
+        )
+        class_loss = aggregator(class_loss) / positive_samples_cnt
+
+        pred_boxes_positive = torch.reshape(pred_boxes[positive_mask], [-1, 4])
+        target_boxes_positive = torch.reshape(target_boxes[positive_mask], [-1, 4])
+        pred_centerness_positive = torch.reshape(pred_centerness[positive_mask], [-1, 1])
+        target_centerness_positive = torch.reshape(target_centerness[positive_mask], [-1, 1])
+
+        centerness_loss = self._cntr_loss(
+            pred_centerness_positive,
+            target_centerness_positive.to(pred_centerness_positive.device),
+        )
+        centerness_loss = aggregator(centerness_loss) / positive_samples_cnt
+
+        regression_loss = self._regr_loss(
+            pred_boxes_positive,
+            target_boxes_positive.to(pred_boxes_positive.device),
+        )
+        regression_loss = aggregator(regression_loss) / positive_samples_cnt
+
+        return class_loss, centerness_loss, regression_loss
