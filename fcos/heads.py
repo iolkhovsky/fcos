@@ -7,12 +7,17 @@ class RegressionHead(nn.Module):
     def __init__(self, layers=4, in_channels=256, intermediate_channels=256):
         super().__init__()
         self.layers = [
-            Conv2dBN(in_channels, intermediate_channels)
+            Conv2dBN(
+                in_channels=in_channels,
+                out_channels=intermediate_channels,
+                batch_norm=False,
+            )
         ]
         self.layers.extend([
             Conv2dBN(
                 in_channels=intermediate_channels,
-                out_channels=intermediate_channels
+                out_channels=intermediate_channels,
+                batch_norm=False,
             )
             for _ in range(1, layers)
         ])
@@ -22,6 +27,7 @@ class RegressionHead(nn.Module):
                 out_channels=4,
                 activation='ReLU',
                 activation_pars={},
+                batch_norm=False,
             )
         )
         self.layers = nn.ModuleList(self.layers)
