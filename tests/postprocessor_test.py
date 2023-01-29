@@ -20,8 +20,8 @@ def test_postprocessor():
 
     outs = postprocessor(test_inputs, scales)
 
-    for level, maps in outs.items():
-        cls, cntr, regr = maps['classes'], maps['centerness'], maps['boxes']
-        assert list(cls.shape) == [batch_size, width * height, classes]
-        assert list(cntr.shape) == [batch_size, width * height, 1]
-        assert list(regr.shape) == [batch_size, width * height, 4]
+    cls, cntr, regr = outs['classes'], outs['centerness'], outs['boxes']
+
+    assert list(cls.shape) == [batch_size, width * height, classes]
+    assert list(cntr.shape) == [batch_size, width * height, 1]
+    assert list(regr.shape) == [batch_size, width * height, 4]

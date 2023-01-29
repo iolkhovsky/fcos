@@ -49,14 +49,15 @@ def test_fcos():
     test_input = torch.randint(0, 255, size=(batch_size, 3, 256, 384), dtype=torch.uint8)
     outs = model(test_input)
 
-    for level, predictions in outs.items():
-        classes_shape = list(predictions['classes'].shape)
-        centerness_shape = list(predictions['centerness'].shape)
-        boxes_shape = list(predictions['boxes'].shape)
+    out_detections = 0
+    w, h = target_resolution
+    for _, scale in level_scales.items():
+        out_detections += (w // scale) * (h // scale)
 
-        w, h = target_resolution
-        w = w // level_scales[level]
-        h = h // level_scales[level]
-        assert classes_shape == [batch_size, w * h, len(labels_codec)]
-        assert centerness_shape == [batch_size, w * h, 1]
-        assert boxes_shape == [batch_size, w * h, 4]
+    classes_shape = list(outs['classes'].shape)
+    centerness_shape = list(outs['centerness'].shape)
+    boxes_shape = list(outs['boxes'].shape)
+
+    assert classes_shape == [batch_size, out_detections, len(labels_codec)]
+    assert centerness_shape == [batch_size, out_detections, 1]
+    assert boxes_shape == [batch_size, out_detections, 4]

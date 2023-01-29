@@ -10,9 +10,11 @@ class FcosPostprocessor(nn.Module):
 
     @staticmethod
     def bchw_to_bnc(tensor):
-        in_shape = tensor.shape
-        tensor = torch.reshape(tensor, list(in_shape)[:2] + [-1,])
-        return torch.permute(tensor, [0, 2, 1])
+        b, c, h, w = tensor.shape
+        return torch.permute(
+            torch.reshape(tensor, [b, c, h * w]),
+            [0, 2, 1]
+        )
 
     def forward(self, core_predictions, scales=None):
         """
@@ -29,12 +31,17 @@ class FcosPostprocessor(nn.Module):
             scales = [(1., 1.) * batch_size]
 
         img_scales = torch.Tensor(scales)
-        out = {}
+        outputs = {
+            'classes': [],
+            'centerness': [],
+            'boxes': [],
+        }
+
         for level, ((cls, cntr), ltrb) in core_predictions.items():
             map_scales = img_scales * self._level_scales[level]
-            out[level] = {
-                'classes': FcosPostprocessor.bchw_to_bnc(cls),
-                'centerness': FcosPostprocessor.bchw_to_bnc(cntr),
-                'boxes': self._codec.decode(ltrb, map_scales),
-            }
-        return out
+            outputs['classes'].append(FcosPostprocessor.bchw_to_bnc(cls))
+            outputs['centerness'].append(FcosPostprocessor.bchw_to_bnc(cntr))
+            outputs['boxes'].append(self._codec.decode(ltrb, map_scales))
+        return {
+            k: torch.cat(v, axis=1) for k, v in outputs.items()
+        }
