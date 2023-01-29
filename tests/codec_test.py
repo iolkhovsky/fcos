@@ -99,15 +99,34 @@ def test_codec_encode():
         torch.tensor([2, 3]),
     ]
 
-    classes, centerness, boxes = codec.encode(test_boxes, test_labels)
+    encoded_gt = codec.encode(test_boxes, test_labels)
 
-    for level, tensor in classes.items():
-        b, c, h, w = tensor.shape
-        print(level, b, c, h, w)
-        for img_idx in range(b):
-            for y_pos in range(h):
-                for x_pos in range(w):
-                    scores = tensor[img_idx, :, y_pos, x_pos]
+    classes_tensor = encoded_gt['classes']
+    centerness_tensor = encoded_gt['centerness']
+    boxes_tensor = encoded_gt['boxes']
+
+    level_names = [f'P{idx}' for idx in range(3, 7 + 1)]
+    level_scales = {f'P{idx}': 2 ** idx for idx in range(3, 7 + 1)}
+
+    offset = 0
+    ysz, xsz = img_res
+    batch_size = len(test_boxes)
+    for level in level_names:
+        scale = level_scales[level]
+        level_ysz = ysz // scale
+        level_xsz = xsz // scale
+        level_detections = level_xsz * level_ysz
+
+        level_classes = classes_tensor[:, offset:offset+level_detections, :]
+        level_boxes = boxes_tensor[:, offset:offset+level_detections, :]
+        level_centerness = centerness_tensor[:, offset:offset+level_detections, :]
+        offset += level_detections       
+
+        for img_idx in range(batch_size):
+            for y_pos in range(level_ysz):
+                for x_pos in range(level_xsz):
+                    plane_idx = y_pos * level_ysz + x_pos
+                    scores = level_classes[img_idx, plane_idx, :]
                     positive_position = torch.any(scores)
                     if positive_position:
                         assert len(test_boxes[img_idx]) > 0
@@ -115,7 +134,8 @@ def test_codec_encode():
                         pos_center_x = (x_pos + 0.5) * codec._level_scales[level]
                         pos_center_y = (y_pos + 0.5) * codec._level_scales[level]
 
-                        ltrb = boxes[level][img_idx, :, y_pos, x_pos]
+                        x1y1x2y2 = level_boxes[img_idx, plane_idx, :]
+                        cntr, ltrb = codec._encode_box_at(x1y1x2y2, level, y_pos, x_pos)
 
                         smallest_box, smallest_label = None, None
                         for gt_box, gt_label in zip(test_boxes[img_idx], test_labels[img_idx]):
@@ -134,16 +154,5 @@ def test_codec_encode():
                                             smallest_label = gt_label
                         
                         assert scores[smallest_label] == 1
-                        
-                        enc_l, enc_t, enc_r, enc_b = ltrb
-                        decoded_box = torch.tensor([
-                            pos_center_x - enc_l,
-                            pos_center_y - enc_t,
-                            pos_center_x + enc_r,
-                            pos_center_y + enc_b,
-                        ])
-
-                        assert torch.all(torch.eq(decoded_box, torch.tensor(smallest_box)))
-                                               
-                        centerness_score = centerness[level][img_idx, 0, y_pos, x_pos]
-                        assert centerness_score == box_centerness(ltrb)
+                        assert torch.all(torch.eq(x1y1x2y2, torch.tensor(smallest_box)))
+                        assert cntr == level_centerness[img_idx, plane_idx, 0]

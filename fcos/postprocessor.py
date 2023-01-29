@@ -6,6 +6,7 @@ class FcosPostprocessor(nn.Module):
     def __init__(self, codec):
         super().__init__()
         self._codec = codec
+        self._level_names = [f'P{idx}' for idx in range(3, 7 + 1)]
         self._level_scales = {f'P{idx}': 2 ** idx for idx in range(3, 7 + 1)}
 
     @staticmethod
@@ -37,7 +38,8 @@ class FcosPostprocessor(nn.Module):
             'boxes': [],
         }
 
-        for level, ((cls, cntr), ltrb) in core_predictions.items():
+        for level in self._level_names:
+            (cls, cntr), ltrb = core_predictions[level]
             map_scales = img_scales * self._level_scales[level]
             outputs['classes'].append(FcosPostprocessor.bchw_to_bnc(cls))
             outputs['centerness'].append(FcosPostprocessor.bchw_to_bnc(cntr))

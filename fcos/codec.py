@@ -15,6 +15,7 @@ class FcosDetectionsCodec(nn.Module):
         super().__init__()
         self._res = res
         self._labels = labels
+        self._level_names = [f'P{idx}' for idx in range(3, 7 + 1)]
         self._level_scales = {f'P{idx}': 2 ** idx for idx in range(3, 7 + 1)}
 
         max_in_size = max(self._res)
@@ -136,17 +137,39 @@ class FcosDetectionsCodec(nn.Module):
                     for y_pos in range(y_first, y_last+1):
                         for x_pos in range(x_first, x_last+1):
                             centerness, ltrb = self._encode_box_at(box, map=feature_map, y=y_pos, x=x_pos)
-                            centerness_tensor[feature_map][img_idx, y_pos, x_pos, 0] = centerness
-                            ltrb_tensor = torch.tensor(ltrb, dtype=torch.float32)
-                            boxes_tensor[feature_map][img_idx, y_pos, x_pos] = ltrb_tensor
-                            max_regression_value = max(ltrb_tensor)
-
+                            max_regression_value = max(torch.tensor(ltrb, dtype=torch.float))
+                            
                             if max_regression_value < regression_min or max_regression_value > regression_max:
                                 classes_tensor[feature_map][img_idx, y_pos, x_pos, label] = 0
+                            else:
+                                centerness_tensor[feature_map][img_idx, y_pos, x_pos, 0] = centerness
+                                boxes_tensor[feature_map][img_idx, y_pos, x_pos] = box
+    
+        encoded_targets = {
+            'classes': [],
+            'centerness': [],
+            'boxes': [],
+        }
 
-        for feature_map in classes_tensor.keys():
-            classes_tensor[feature_map] = torch.permute(classes_tensor[feature_map], [0, 3, 1, 2])
-            centerness_tensor[feature_map] = torch.permute(centerness_tensor[feature_map], [0, 3, 1, 2])
-            boxes_tensor[feature_map] = torch.permute(boxes_tensor[feature_map], [0, 3, 1, 2])
+        for feature_map in self._level_names:
+            bhwc_tensor = classes_tensor[feature_map] 
+            b, h, w, c = bhwc_tensor.shape
+            encoded_targets['classes'].append(
+                torch.reshape(bhwc_tensor, [b, w * h, c])
+            )
 
-        return classes_tensor, centerness_tensor, boxes_tensor
+            bhwc_tensor = centerness_tensor[feature_map] 
+            b, h, w, c = bhwc_tensor.shape
+            encoded_targets['centerness'].append(
+                torch.reshape(bhwc_tensor, [b, w * h, c])
+            )
+
+            bhwc_tensor = boxes_tensor[feature_map] 
+            b, h, w, c = bhwc_tensor.shape
+            encoded_targets['boxes'].append(
+                torch.reshape(bhwc_tensor, [b, w * h, c])
+            )
+
+        return {
+            k: torch.cat(v, axis=1) for k, v in encoded_targets.items()
+        }
