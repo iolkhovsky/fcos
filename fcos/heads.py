@@ -50,7 +50,7 @@ class ClassificationHead(nn.Module):
                 in_channels=in_channels,
                 out_channels=intermediate_channels,
                 initializer=_initializer,
-                batch_norm=False,
+                batch_norm=True,
             )
         ]
         self.neck.extend([
@@ -58,7 +58,7 @@ class ClassificationHead(nn.Module):
                 in_channels=intermediate_channels,
                 out_channels=intermediate_channels,
                 initializer=_initializer,
-                batch_norm=False,
+                batch_norm=True,
             )
             for _ in range(1, layers)
         ])
@@ -76,7 +76,8 @@ class ClassificationHead(nn.Module):
             out_channels=1,
             activation='Sigmoid',
             activation_pars={},
-            batch_norm=True,
+            bias_pi=0.01,
+            batch_norm=False,
         )        
 
     def forward(self, x):

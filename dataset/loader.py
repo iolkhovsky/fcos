@@ -11,7 +11,7 @@ class VocPreprocessor:
     def __init__(self):
         self._pipeline = A.Compose(
             [
-                A.ShiftScaleRotate(shift_limit=0.0625, scale_limit=0.1, rotate_limit=45),
+                A.ShiftScaleRotate(shift_limit=0.0625, scale_limit=0.1, rotate_limit=10),
                 A.SmallestMaxSize(256, interpolation=1),
                 A.RandomCrop(width=256, height=256),
                 A.HorizontalFlip(p=0.5),
