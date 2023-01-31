@@ -81,15 +81,32 @@ class FeatureExtractor(nn.Module):
             in_channels_list=[512, 1024, 2048],
             out_channels=out_channels,
         )
-        self._conv1 = Conv2dBN(in_channels=out_channels, out_channels=out_channels, kernel=3, stride=2, padding=1)
-        self._conv2 = Conv2dBN(in_channels=out_channels, out_channels=out_channels, kernel=3, stride=2, padding=1)
+        self._conv1 = Conv2dBN(
+            in_channels=out_channels,
+            out_channels=out_channels,
+            kernel=3,
+            stride=2,
+            padding=1,
+            batch_norm=False,
+            activation='ReLU',
+            activation_pars={},
+        )
+        self._conv2 = Conv2dBN(
+            in_channels=out_channels,
+            out_channels=out_channels,
+            kernel=3,
+            stride=2,
+            padding=1,
+            batch_norm=False,
+            activation='ReLU',
+            activation_pars={},
+        )
 
     def forward(self, x):
         feature_maps = self._fpn(self._getter(x))
         feature_maps['P6'] = self._conv1(feature_maps['P5'])
         feature_maps['P7'] = self._conv1(feature_maps['P6'])
         return feature_maps
-
 
     @property
     def feature_maps(self):
