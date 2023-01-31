@@ -23,9 +23,18 @@ class CenternessLoss(nn.Module):
     def __init__(self):
         super(CenternessLoss, self).__init__()
         self._criterion = nn.BCELoss(reduction='none')
+        self._thresh = 1e-4
+        self._clamper = lambda x: torch.clamp(x, self._thresh, 1. - self._thresh)
 
     def forward(self, pred, target):
-        return self._criterion(pred, target)
+        clamped_pred = self._clamper(pred)
+        clamped_target = self._clamper(target)
+
+        x = self._criterion(clamped_pred, clamped_target)
+        if torch.any(torch.isnan(x)):
+            print(pred)
+        return x
+
 
 
 class IoULoss(nn.Module):
@@ -62,18 +71,18 @@ class FcosLoss(nn.Module):
     def forward(self, pred, target, aggregator='sum'):     
         aggregator = getattr(torch, aggregator)
         
-        target_classes = target['classes']
-        target_boxes = target['boxes']
-        target_centerness = target['centerness']
+        _, _, classes = target['classes'].shape
+        target_classes = torch.reshape(target['classes'], [-1, classes])
+        target_boxes = torch.reshape(target['boxes'], [-1, 4])
+        target_centerness = torch.reshape(target['centerness'], [-1, 1])
 
-        pred_classes = pred['classes']
-        pred_boxes = pred['boxes']
-        pred_centerness = pred['centerness']
+        pred_classes = torch.reshape(pred['classes'], [-1, classes])
+        pred_boxes = torch.reshape(pred['boxes'], [-1, 4])
+        pred_centerness = torch.reshape(pred['centerness'], [-1, 1])
         
         positive_samples = torch.sum(target_classes, axis=-1)  
         positive_mask = positive_samples > 0
         positive_samples_cnt = torch.sum(positive_mask)
-        print("Positive samples cnt:", positive_samples_cnt)
         if positive_samples_cnt == 0:
             return None
         
@@ -83,10 +92,10 @@ class FcosLoss(nn.Module):
         )
         class_loss = aggregator(class_loss) / positive_samples_cnt
 
-        pred_boxes_positive = torch.reshape(pred_boxes[positive_mask], [-1, 4])
-        target_boxes_positive = torch.reshape(target_boxes[positive_mask], [-1, 4])
-        pred_centerness_positive = torch.reshape(pred_centerness[positive_mask], [-1, 1])
-        target_centerness_positive = torch.reshape(target_centerness[positive_mask], [-1, 1])
+        pred_boxes_positive = pred_boxes[positive_mask]
+        target_boxes_positive = target_boxes[positive_mask]
+        pred_centerness_positive = pred_centerness[positive_mask]
+        target_centerness_positive = target_centerness[positive_mask]
 
         centerness_loss = self._cntr_loss(
             pred_centerness_positive,

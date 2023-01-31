@@ -76,8 +76,7 @@ class ClassificationHead(nn.Module):
             out_channels=1,
             activation='Sigmoid',
             activation_pars={},
-            bias_pi=0.01,
-            batch_norm=False,
+            batch_norm=True,
         )        
 
     def forward(self, x):
