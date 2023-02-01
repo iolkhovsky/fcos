@@ -5,7 +5,7 @@ from fcos.layers import Conv2dBN
 
 
 class RegressionHead(nn.Module):
-    def __init__(self, layers=4, in_channels=256, intermediate_channels=256):
+    def __init__(self, layers=4, in_channels=256, intermediate_channels=256, scale=1.):
         super().__init__()
 
         def _initializer(weights):
@@ -42,11 +42,12 @@ class RegressionHead(nn.Module):
                 batch_norm=False,
                 bias=True,
         )
+        self._scale = torch.nn.Parameter(scale)
 
     def forward(self, x):
         for layer in self.neck:
             x = layer(x)
-        return torch.exp(self.regression_head(x))
+        return self._scale * torch.exp(self.regression_head(x))
 
 
 class ClassificationHead(nn.Module):
