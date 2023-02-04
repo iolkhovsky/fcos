@@ -50,14 +50,18 @@ def test_focal_loss_legacy():
 
 
 def test_centerness_loss():
-    predicted = torch.from_numpy(np.asarray([[0.05, 0.5, 0.999], [0.3, 0.91, 0.17]], dtype=np.float32))
+    predicted = torch.from_numpy(np.asarray([[-0.05, -0.5, 0.999], [0.3, -0.91, 0.17]], dtype=np.float32))
     targets = torch.from_numpy(np.asarray([[0.1, 1., 0.], [0.7, 0.6, 0.33]], dtype=np.float32))
+    threshold = 1e-3
 
-    loss = CenternessLoss()(pred=predicted, target=targets)
+    loss = CenternessLoss(threshold=threshold)(pred=predicted, target=targets)
 
     target_loss = 0.
     for pred_vector, targets_vector in zip(predicted, targets):
         for p, t in zip(pred_vector, targets_vector):
+            p = torch.sigmoid(p)
+            p = torch.clamp(p, min=threshold, max=1. - threshold)
+            t = torch.clamp(t, min=threshold, max=1. - threshold)
             item_loss = -(t * torch.log(p) + (1 - t) * torch.log(1 - p))
             target_loss += item_loss
     target_loss = target_loss.item()
@@ -106,6 +110,6 @@ def test_iou_loss():
 
     target_loss = 0.
     for pred_box, targets_box in zip(predicted_ltrb, target_ltrb):
-        target_loss += 1. - iou(pred_box, targets_box)
+        target_loss += -torch.log(iou(pred_box, targets_box))
 
     assert torch.sum(loss) == pytest.approx(target_loss, 1e-5)

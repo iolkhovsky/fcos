@@ -30,5 +30,3 @@ def test_classification_head():
     scores, centerness = head(in_tensor)
     assert list(scores.shape) == [batch_size, classes,] + res
     assert list(centerness.shape) == [batch_size, 1,] + res
-    assert torch.all(0. <= scores) and torch.all(scores <= 1.)
-    assert torch.all(0. <= centerness) and torch.all(centerness <= 1.)

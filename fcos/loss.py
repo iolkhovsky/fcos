@@ -20,11 +20,11 @@ class FocalLoss(nn.Module):
 
 
 class CenternessLoss(nn.Module):
-    def __init__(self, apply_sigmoid=True):
+    def __init__(self, apply_sigmoid=True, threshold=1e-4):
         super(CenternessLoss, self).__init__()
         self._apply_sigmoid = apply_sigmoid
         self._criterion = nn.BCELoss(reduction='none')
-        self._thresh = 1e-4
+        self._thresh = threshold
         self._clamper = lambda x: torch.clamp(x, self._thresh, 1. - self._thresh)
 
     def forward(self, pred, target):
@@ -32,11 +32,7 @@ class CenternessLoss(nn.Module):
             pred = pred.sigmoid()
         clamped_pred = self._clamper(pred)
         clamped_target = self._clamper(target)
-
-        x = self._criterion(clamped_pred, clamped_target)
-        if torch.any(torch.isnan(x)):
-            print(pred)
-        return x
+        return self._criterion(clamped_pred, clamped_target)
 
 
 class IoULoss(nn.Module):
