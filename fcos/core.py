@@ -29,32 +29,26 @@ class FcosCore(nn.Module):
 
     def _concatenate_outputs(self, fmap_predictions):
         return {
-            'classes': FcosCore.bchw_to_bnc(
-                torch.cat(
-                    [
-                        fmap_predictions[fmap_name][0][0]
-                        for fmap_name in self._fext.feature_maps
-                    ],
-                    axis=1,
-                )
+            'classes': torch.cat(
+                [
+                    FcosCore.bchw_to_bnc(fmap_predictions[fmap_name][0][0])
+                    for fmap_name in self._fext.feature_maps
+                ],
+                axis=1,
             ),
-            'centerness': FcosCore.bchw_to_bnc(
-                torch.cat(
-                    [
-                        fmap_predictions[fmap_name][0][1]
-                        for fmap_name in self._fext.feature_maps
-                    ],
-                    axis=1,
-                )
+            'centerness': torch.cat(
+                [
+                    FcosCore.bchw_to_bnc(fmap_predictions[fmap_name][0][1])
+                    for fmap_name in self._fext.feature_maps
+                ],
+                axis=1,
             ),
-            'boxes': FcosCore.bchw_to_bnc(
-                torch.cat(
-                    [
-                        fmap_predictions[fmap_name][1]
-                        for fmap_name in self._fext.feature_maps
-                    ],
-                    axis=1,
-                )
+            'boxes': torch.cat(
+                [
+                    FcosCore.bchw_to_bnc(fmap_predictions[fmap_name][1])
+                    for fmap_name in self._fext.feature_maps
+                ],
+                axis=1,
             ),
         }
 

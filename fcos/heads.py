@@ -42,7 +42,7 @@ class RegressionHead(nn.Module):
                 batch_norm=False,
                 bias=True,
         )
-        self._scale = torch.nn.Parameter(scale)
+        self._scale = torch.nn.Parameter(torch.tensor(scale, dtype=torch.float))
 
     def forward(self, x):
         for layer in self.neck:
