@@ -1,0 +1,33 @@
+model:
+  backbone: resnet50
+  labels: VocLabelsCodec
+  resolution:
+    - 256
+    - 256
+dataset:
+  train:
+    batch_size: 16
+  val:
+    batch_size: 36
+optimizer:
+  type: SGD
+  parameters:
+    lr: 1e-2
+    momentum: 0.9
+scheduler:
+  type: ExponentialLR
+  parameters:
+    gamma: 0.9
+    last_epoch: -1
+    verbose: false 
+epochs: 10
+autosave_period:
+  value: 1
+  type: min
+validation_period:
+  value: 10
+  type: step
+logs:
+  path: logs
+checkpoints:
+  path: checkpoints
