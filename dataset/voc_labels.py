@@ -1,7 +1,7 @@
 # https://www.w3schools.com/tags/ref_colornames.asp
 
 
-class LabelsCodec:
+class VocLabelsCodec:
     def __init__(self):
         self._names = [
             'person', 'bottle', 'chair', 'diningtable',

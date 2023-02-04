@@ -3,7 +3,7 @@ import torch
 from fcos.backbone import build_backbone
 from fcos.core import *
 from fcos.model import *
-from dataset.labels_codec import LabelsCodec
+from dataset.voc_labels import VocLabelsCodec
 
 
 def test_fcos_core():
@@ -32,7 +32,7 @@ def test_fcos_core():
 
 def test_fcos():
     target_resolution = (256, 256)
-    labels_codec = LabelsCodec()
+    labels_codec = VocLabelsCodec()
 
     model = FCOS(
         backbone=build_backbone('resnet50'),

@@ -4,7 +4,7 @@ import torchvision
 import torch
 from torch.utils.data import DataLoader
 
-from dataset.labels_codec import LabelsCodec
+from dataset.voc_labels import VocLabelsCodec
 
 
 class VocPreprocessor:

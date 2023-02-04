@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from dataset import LabelsCodec
+from dataset import VocLabelsCodec
 from fcos.postprocessor import FcosPostprocessor
 from fcos.encoder import FcosDetectionsEncoder
 
@@ -57,7 +57,7 @@ def test_codec_centers():
 
 def test_decode_predictions():
     img_res = (256, 256)
-    encoder = FcosDetectionsEncoder(img_res, LabelsCodec())
+    encoder = FcosDetectionsEncoder(img_res, VocLabelsCodec())
     img_scales = [(1., 1.), (1., 1.), (1., 1.)]
 
     test_boxes = [

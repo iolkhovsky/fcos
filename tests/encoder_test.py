@@ -5,7 +5,7 @@ from fcos import FcosDetectionsEncoder
 import pytest
 
 from fcos.encoder import box_centerness
-from dataset import LabelsCodec
+from dataset import VocLabelsCodec
 
 
 def test_box_centerness():
@@ -25,7 +25,7 @@ def test_box_centerness():
 
 def test_encode_box_at():
     img_res = (256, 256)
-    encoder = FcosDetectionsEncoder(img_res, LabelsCodec())
+    encoder = FcosDetectionsEncoder(img_res, VocLabelsCodec())
 
     test_boxes = [
         ([0, 0, 15, 15], 'P3', (1, 2)),
@@ -53,7 +53,7 @@ def test_encode_box_at():
 
 def test_encoder():
     img_res = (256, 256)
-    encoder = FcosDetectionsEncoder(img_res, LabelsCodec())
+    encoder = FcosDetectionsEncoder(img_res, VocLabelsCodec())
 
     test_boxes = [
         torch.tensor([
