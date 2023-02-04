@@ -1,3 +1,5 @@
+import os
+import torch
 from torch import nn
 
 from fcos.preprocessor import FcosPreprocessor
@@ -22,3 +24,13 @@ class FCOS(nn.Module):
             return self._loss(pred=core_outputs, target=target)
         else:
             return self._postprocessor(core_outputs, scales)
+
+    def save(self, path):
+        torch.save(self.state_dict(), path)
+
+    @staticmethod
+    def load(path, backbone, labels_codec, res=(512, 512)):
+        model = FCOS(backbone, labels_codec, res)
+        model.load_state_dict(torch.load(path))
+        model.eval()
+        return model
