@@ -1,7 +1,10 @@
 import datetime
 import os
 import torch
+from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
+import traceback
+
 
 from common.torch_utils import get_available_device
 
@@ -47,28 +50,41 @@ class FcosTrainer:
         )
         os.makedirs(checkpoints_path)
 
+        writer = SummaryWriter(logs_path)
+
         img_batch, _, _ = next(iter(self.train_dataset))
         total_batches = len(self.train_dataset)
         total_steps = total_batches * len(img_batch)
 
         self.model = self.model.train().to(self.device)
 
+        global_step = 0
         with tqdm(total=total_steps) as pbar:
             for epoch_idx in range(self.epochs):
                 for step, (imgs, boxes, labels) in enumerate(self.train_dataset):
-                    self.optimizer.zero_grad()
+                    try:
+                        self.optimizer.zero_grad()
 
-                    targets = self.encoder(boxes, labels)
-                    imgs = imgs.to(self.device)
-                    loss = self.model(imgs, targets)
+                        targets = self.encoder(boxes, labels)
+                        imgs = imgs.to(self.device)
+                        loss = self.model(imgs, targets)
 
-                    total_loss = loss['classification'] + loss['centerness'] + loss['regression']
-                    total_loss.backward()
-                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.)
-                    self.optimizer.step()
+                        total_loss = loss['classification'] + loss['centerness'] + loss['regression']
+                        total_loss.backward()
+                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.)
+                        self.optimizer.step()
+
+                        writer.add_scalar(f'Train/TotalLoss', total_loss.detach(), global_step)
+                        writer.add_scalar(f'Train/ClassLoss', loss['classification'].detach(), global_step)
+                        writer.add_scalar(f'Train/CenterLoss', loss['centerness'].detach(), global_step)
+                        writer.add_scalar(f'Train/RegressionLoss', loss['regression'].detach(), global_step)
+                    except Exception as e:
+                        print(f"Error: Got an unhandled exception during epoch {epoch_idx} step {step}")
+                        print(traceback.format_exc())
 
                     pbar.set_description(
                         f"Epoch: {epoch_idx}/{self.epochs} "
                         f"Step {step}/{total_steps} Loss: {total_loss.detach().cpu().numpy()}"
                     )
                     pbar.update(1)
+                    global_step += 1
