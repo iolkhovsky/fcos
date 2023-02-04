@@ -82,7 +82,7 @@ class FcosPostprocessor(nn.Module):
                 axis=-1
             )
             img_class_score, img_class_idx = torch.max(img_classes, axis=-1)
-            img_scores = img_class_score * img_centerness
+            img_scores = img_class_score * torch.squeeze(img_centerness)
             out_boxes.append(img_boxes)
             out_ids.append(img_class_idx)
             out_scores.append(img_scores)
