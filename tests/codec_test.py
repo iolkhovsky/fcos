@@ -2,7 +2,7 @@ import torch
 import numpy as np
 
 from fcos import FcosDetectionsCodec
-from fcos.codec import box_centerness
+from fcos.encoder import box_centerness
 from dataset import LabelsCodec
 
 

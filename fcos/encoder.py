@@ -10,7 +10,7 @@ def box_centerness(ltrb_box):
     )
 
 
-class FcosDetectionsCodec(nn.Module):
+class FcosDetectionsEncoder(nn.Module):
     def __init__(self, res, labels):
         super().__init__()
         self._res = res
@@ -27,56 +27,15 @@ class FcosDetectionsCodec(nn.Module):
             'P7': (max_in_size, np.inf), 
         }
 
-    @staticmethod
-    def _generate_centers(map_h, map_w, scales):
-        batch_size = len(scales)
-        y = torch.tensor(list(range(map_h))) + 0.5
-        x = torch.tensor(list(range(map_w))) + 0.5
-        grid_y, grid_x = torch.meshgrid(y, x, indexing='ij')
-        centers = torch.cat(
-            [grid_y[..., None], grid_x[..., None]],
-            axis=-1
-        )[None, ...]
-        
-        centers = centers.repeat(batch_size, 1, 1, 1)
-        centers = centers * scales[:, None, None, :]
-        return centers
-
-    def forward(self, x):
-        raise RuntimeError("Not implemented")
-
-    def decode(self, ltrb_map, scales):
-        device = ltrb_map.device
-
-        b, _, h, w = ltrb_map.shape
-        ltrb_map = torch.permute(ltrb_map, [0, 2, 3, 1])  # bchw -> bhwc
-
-        centers = FcosDetectionsCodec._generate_centers(h, w, scales).to(device)
-        centers_y, centers_x = centers[:, :, :, 0], centers[:, :, :, 1]
-        centers_y = centers_y[..., None]
-        centers_x = centers_x[..., None]
-
-        xmin = centers_x - ltrb_map[:, :, :, 0, None]
-        ymin = centers_y - ltrb_map[:, :, :, 1, None]
-        xmax = centers_x + ltrb_map[:, :, :, 2, None]
-        ymax = centers_y + ltrb_map[:, :, :, 3, None]
-
-        boxes = torch.cat(
-            [xmin, ymin, xmax, ymax],
-            axis=-1
-        )
-        return torch.reshape(boxes, [b, h * w, -1])
-
     def _find_box_positions(self, box):
         positions = {}
-        h, w = self._res
         xmin, ymin, xmax, ymax = box
         for fmap, scale in self._level_scales.items():
-            x_size, y_size = scale, scale
-            xmin_norm = xmin / x_size
-            xmax_norm = xmax / x_size
-            ymin_norm = ymin / y_size
-            ymax_norm = ymax / y_size
+            cell_xsz, cell_ysz = scale, scale
+            xmin_norm = xmin / cell_xsz
+            xmax_norm = xmax / cell_xsz
+            ymin_norm = ymin / cell_ysz
+            ymax_norm = ymax / cell_ysz
 
             x_first, x_last = int(xmin_norm + 0.5), int(xmax_norm - 0.5)
             y_first, y_last = int(ymin_norm + 0.5), int(ymax_norm - 0.5)
@@ -89,7 +48,6 @@ class FcosDetectionsCodec(nn.Module):
         center_x = (x + 0.5) * scale
         center_y = (y + 0.5) * scale
         xmin, ymin, xmax, ymax = box
-
         ltrb_box = torch.tensor(
             [
                 center_x - xmin,
@@ -98,10 +56,9 @@ class FcosDetectionsCodec(nn.Module):
                 ymax - center_y
             ]
         )
-
         return box_centerness(ltrb_box), ltrb_box
 
-    def encode(self, boxes, labels):
+    def forward(self, boxes, labels):
         batch_size = len(boxes)
         classes = len(self._labels)
         h, w = self._res
@@ -143,7 +100,7 @@ class FcosDetectionsCodec(nn.Module):
                                 classes_tensor[feature_map][img_idx, y_pos, x_pos, label] = 0
                             else:
                                 centerness_tensor[feature_map][img_idx, y_pos, x_pos, 0] = centerness
-                                boxes_tensor[feature_map][img_idx, y_pos, x_pos] = box
+                                boxes_tensor[feature_map][img_idx, y_pos, x_pos] = ltrb
     
         encoded_targets = {
             'classes': [],

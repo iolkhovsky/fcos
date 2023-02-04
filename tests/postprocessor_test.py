@@ -1,7 +1,7 @@
 import torch
 
 from fcos.postprocessor import *
-from fcos.codec import FcosDetectionsCodec
+from fcos.encoder import FcosDetectionsCodec
 
 
 def test_postprocessor():
