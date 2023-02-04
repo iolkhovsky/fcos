@@ -3,3 +3,4 @@ from fcos.encoder import FcosDetectionsEncoder
 from fcos.core import FcosCore
 from fcos.model import FCOS
 from fcos.loss import FocalLoss, CenternessLoss, IoULoss, FcosLoss
+from fcos.trainer import FcosTrainer

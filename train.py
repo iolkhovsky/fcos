@@ -5,7 +5,7 @@ import torch
 from common.utils import *
 from common.interval import Interval
 import dataset
-from fcos import FCOS, build_backbone, FcosDetectionsEncoder
+from fcos import FCOS, build_backbone, FcosDetectionsEncoder, FcosTrainer
 
 
 def parse_cmd_args():
@@ -69,6 +69,23 @@ def run_training(args):
     autosave_period = Interval.from_config(config['autosave_period'])
     validation_period = Interval.from_config(config['validation_period'])
 
+    logs_path = config['logs']['path']
+    checkpoints_path = config['checkpoints']['path']
+
+    trainer = FcosTrainer(
+        model=model,
+        optimizer=optimizer,
+        scheduler=scheduler,
+        train_dataset=train_dataset,
+        val_dataset=val_dataloader,
+        encoder=encoder,
+        epochs=epochs,
+        autosave_period=autosave_period,
+        validation_period=validation_period,
+        logs_path=logs_path,
+        checkpoints_path=checkpoints_path,
+    )
+    trainer.run()
 
 if __name__ == "__main__":
     run_training(parse_cmd_args())

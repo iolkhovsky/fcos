@@ -27,3 +27,7 @@ autosave_period:
 validation_period:
   value: 10
   type: step
+logs:
+  path: logs
+checkpoints:
+  path: checkpoints
