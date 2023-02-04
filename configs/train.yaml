@@ -20,3 +20,10 @@ scheduler:
     gamma: 0.9
     last_epoch: -1
     verbose: false 
+epochs: 10
+autosave_period:
+  value: 1
+  type: min
+validation_period:
+  value: 10
+  type: step

@@ -3,6 +3,7 @@ import os
 import torch
 
 from common.utils import *
+from common.interval import Interval
 import dataset
 from fcos import FCOS, build_backbone, FcosDetectionsEncoder
 
@@ -52,18 +53,21 @@ def run_training(args):
     config = read_yaml(args.config)
     pretty_print(config)
 
+    train_dataset, val_dataloader = compile_datasets(config['dataset'])
     model_config = config['model']
-    model = compile_model(model_config)
-
     labels_codec = getattr(dataset, model_config['labels'])()
     encoder = FcosDetectionsEncoder(
         res=model_config['resolution'],
         labels=labels_codec,
     )
 
-    train_dataset, val_dataloader = compile_datasets(config['dataset'])
+    model = compile_model(model_config)
     optimizer = compile_optimizer(model.parameters(), config['optimizer'])
     scheduler = compile_scheduler(optimizer, config['scheduler'])
+
+    epochs = config['epochs']
+    autosave_period = Interval.from_config(config['autosave_period'])
+    validation_period = Interval.from_config(config['validation_period'])
 
 
 if __name__ == "__main__":
