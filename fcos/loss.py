@@ -39,10 +39,10 @@ class CenternessLoss(nn.Module):
         return x
 
 
-
 class IoULoss(nn.Module):
-    def __init__(self):
+    def __init__(self, type='iou'):
         super(IoULoss, self).__init__()
+        self._type=type
 
     def forward(self, pred, target):     
         pred_l, target_l = pred[..., 0], target[..., 0]
@@ -61,7 +61,10 @@ class IoULoss(nn.Module):
         union = predArea + targetArea - intersection
         iou = intersection / (union + 1e-6)
         
-        return 1. - iou
+        if self._type == 'iou':
+            return -torch.log(iou)
+        else:
+            raise NotImplemented()
 
 
 class FcosLoss(nn.Module):
@@ -88,7 +91,7 @@ class FcosLoss(nn.Module):
         positive_samples_cnt = torch.sum(positive_mask)
         if positive_samples_cnt == 0:
             return None
-        
+
         class_loss = self._clf_loss(
             pred_classes,
             target_classes.to(pred_classes.device),
