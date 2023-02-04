@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 
 class FocalLoss(nn.Module):
-    def __init__(self, alpha=0.25, gamma=2, apply_sigmoid=False):
+    def __init__(self, alpha=0.25, gamma=2, apply_sigmoid=True):
         super(FocalLoss, self).__init__()
         self._alpha = alpha
         self._gamma = gamma
@@ -20,13 +20,16 @@ class FocalLoss(nn.Module):
 
 
 class CenternessLoss(nn.Module):
-    def __init__(self):
+    def __init__(self, apply_sigmoid=True):
         super(CenternessLoss, self).__init__()
+        self._apply_sigmoid = apply_sigmoid
         self._criterion = nn.BCELoss(reduction='none')
         self._thresh = 1e-4
         self._clamper = lambda x: torch.clamp(x, self._thresh, 1. - self._thresh)
 
     def forward(self, pred, target):
+        if self._apply_sigmoid:
+            pred = pred.sigmoid()
         clamped_pred = self._clamper(pred)
         clamped_target = self._clamper(target)
 
@@ -109,4 +112,8 @@ class FcosLoss(nn.Module):
         )
         regression_loss = aggregator(regression_loss) / positive_samples_cnt
 
-        return class_loss, centerness_loss, regression_loss
+        return {
+            'classification': class_loss,
+            'centerness': centerness_loss,
+            'regression': regression_loss,
+        }
