@@ -46,7 +46,7 @@ class VocPreprocessor:
 
 
 def collate(batch):
-    codec = LabelsCodec()
+    codec = VocLabelsCodec()
     images, bboxes, labels = [], [], []
     for image, img_targets in batch:
         images.append(image)
