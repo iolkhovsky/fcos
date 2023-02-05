@@ -5,6 +5,7 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 import traceback
+from torchmetrics.detection.mean_ap import MeanAveragePrecision
 
 from common.torch_utils import get_available_device
 from common.interval import IntervalManager
@@ -38,6 +39,15 @@ class FcosTrainer:
         self.grad_clip = grad_clip
 
         self.device = get_available_device()
+
+        self.metrics_evaluator = MeanAveragePrecision(
+            box_format='xyxy',
+            iou_type='bbox',
+            iou_thresholds=None,
+            rec_thresholds=None,
+            max_detection_thresholds=None,
+            class_metrics=False,
+        )
 
     def run(self):
         session_timestamp = str(datetime.datetime.now())
@@ -99,7 +109,7 @@ class FcosTrainer:
                             val_targets = self.encoder(val_boxes, val_labels)
                             val_imgs = val_imgs.to(self.device)
 
-                            preprocessed_imgs, _ = self.model._preprocessor(val_imgs)
+                            preprocessed_imgs, val_scales = self.model._preprocessor(val_imgs)
                             core_outputs = self.model._core(preprocessed_imgs)
                             val_loss = self.model._loss(pred=core_outputs, target=val_targets)
                             val_total_loss = val_loss['classification'] + val_loss['centerness'] + val_loss['regression']
@@ -108,6 +118,10 @@ class FcosTrainer:
                             writer.add_scalar(f'Val/ClassLoss', val_loss['classification'].detach(), global_step)
                             writer.add_scalar(f'Val/CenterLoss', val_loss['centerness'].detach(), global_step)
                             writer.add_scalar(f'Val/RegressionLoss', val_loss['regression'].detach(), global_step)
+
+                            val_predictions = self.model._postprocessor(core_outputs, val_scales)
+
+                            # metrics = self.metrics_evaluator()
 
                             self.model.train()
                     except Exception as e:
