@@ -140,8 +140,12 @@ class FcosTrainer:
                                 )
                             self.metrics_evaluator.update(metrics_pred, metrics_target)
                             metrics = self.metrics_evaluator.compute()
-                            print("\nMetrics:")
-                            print(metrics)
+                            writer.add_scalar(f'Metrics/mAP', metrics['map'], global_step)
+                            writer.add_scalar(f'Metrics/mAP@50', metrics['map_50'], global_step)
+                            writer.add_scalar(f'Metrics/mAP@75', metrics['map_75'], global_step)
+                            writer.add_scalar(f'Metrics/mAP-small', metrics['map_small'], global_step)
+                            writer.add_scalar(f'Metrics/mAP-medium', metrics['map_medium'], global_step)
+                            writer.add_scalar(f'Metrics/mAP-large', metrics['map_large'], global_step)
 
                             self.model.train()
                     except Exception as e:
