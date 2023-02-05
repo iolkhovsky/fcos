@@ -64,6 +64,7 @@ def run_training(args):
     model = compile_model(model_config)
     optimizer = compile_optimizer(model.parameters(), config['optimizer'])
     scheduler = compile_scheduler(optimizer, config['scheduler'])
+    grad_clip = float(config['gradient_clip'])
 
     epochs = config['epochs']
     autosave_period = Interval.from_config(config['autosave_period'])
@@ -84,6 +85,7 @@ def run_training(args):
         validation_period=validation_period,
         logs_path=logs_path,
         checkpoints_path=checkpoints_path,
+        grad_clip=grad_clip,
     )
     trainer.run()
 

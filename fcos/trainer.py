@@ -5,8 +5,8 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 import traceback
 
-
 from common.torch_utils import get_available_device
+from common.interval import Interval
 
 
 class FcosTrainer:
@@ -21,7 +21,8 @@ class FcosTrainer:
                  autosave_period=None,
                  validation_period=None,
                  logs_path=None,
-                 checkpoints_path=None):
+                 checkpoints_path=None,
+                 grad_clip=None):
         self.model = model
         self.optimizer = optimizer
         self.train_dataset = train_dataset
@@ -30,9 +31,14 @@ class FcosTrainer:
         self.scheduler = scheduler
         self.val_dataset = val_dataset
         self.autosave_period = autosave_period
+        if self.autosave_period:
+            assert isinstance(self.autosave_period, Interval)
         self.val_period = validation_period
+        if self.val_period:
+            assert isinstance(self.val_period, Interval)
         self.logs_root = logs_path
         self.checkpoints_root = checkpoints_path
+        self.grad_clip = grad_clip
 
         self.device = get_available_device()
 
@@ -71,7 +77,8 @@ class FcosTrainer:
 
                         total_loss = loss['classification'] + loss['centerness'] + loss['regression']
                         total_loss.backward()
-                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.)
+                        if self.grad_clip:
+                            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip)
                         self.optimizer.step()
 
                         writer.add_scalar(f'Train/TotalLoss', total_loss.detach(), global_step)

@@ -31,3 +31,4 @@ logs:
   path: logs
 checkpoints:
   path: checkpoints
+gradient_clip: 1.0
