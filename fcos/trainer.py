@@ -6,7 +6,9 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 import traceback
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
+import torchvision
 
+from dataset.visualization import visualize_batch
 from common.torch_utils import get_available_device
 from common.interval import IntervalManager
 
@@ -48,6 +50,49 @@ class FcosTrainer:
             max_detection_thresholds=None,
             class_metrics=False,
         )
+
+    @staticmethod
+    def visualize_prediction(images, predictions, target_boxes,
+                             target_labels, labels_codec, writer, step, threshold=0.1):
+        batch_size = len(images)
+        filtered_boxes, filtered_scores, filtered_labels = [], [], []
+        for img_idx in range(batch_size):
+            mask = predictions['scores'][img_idx] > threshold
+            filtered_boxes.append(
+                predictions['boxes'][img_idx][mask]
+            )
+            filtered_scores.append(
+                predictions['scores'][img_idx][mask]
+            )
+            filtered_labels.append(
+                predictions['classes'][img_idx][mask]
+            )    
+
+        vis_pred_imgs = visualize_batch(
+            imgs_batch=images,
+            boxes_batch=filtered_boxes,
+            labels_batch=filtered_labels,
+            scores_batch=filtered_scores,
+            codec=labels_codec,
+            return_images=True
+        )
+
+        vis_target_imgs = visualize_batch(
+            imgs_batch=images,
+            boxes_batch=target_boxes,
+            labels_batch=target_labels,
+            codec=labels_codec,
+            return_images=True
+        )
+
+        pred_images_tensors = [torch.permute(torch.from_numpy(x), (2, 0, 1)) for x in vis_pred_imgs]
+        pred_grid = torchvision.utils.make_grid(pred_images_tensors)
+        writer.add_image(f'Prediction', pred_grid, step)
+
+        target_images_tensors = [torch.permute(torch.from_numpy(x), (2, 0, 1)) for x in vis_target_imgs]
+        target_grid = torchvision.utils.make_grid(target_images_tensors)
+        writer.add_image(f'Target', target_grid, step)
+
 
     def run(self):
         session_timestamp = str(datetime.datetime.now())
@@ -146,6 +191,17 @@ class FcosTrainer:
                             writer.add_scalar(f'Metrics/mAP-small', metrics['map_small'], global_step)
                             writer.add_scalar(f'Metrics/mAP-medium', metrics['map_medium'], global_step)
                             writer.add_scalar(f'Metrics/mAP-large', metrics['map_large'], global_step)
+
+                            FcosTrainer.visualize_prediction(
+                                images=val_imgs,
+                                predictions=val_predictions,
+                                target_boxes=val_boxes,
+                                target_labels=val_labels,
+                                labels_codec=self.model._labels,
+                                writer=writer,
+                                step=global_step,
+                                threshold=0.1,
+                            )
 
                             self.model.train()
                     except Exception as e:

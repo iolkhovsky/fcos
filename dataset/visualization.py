@@ -50,7 +50,7 @@ def visualize_boxes(image, boxes=[], labels=[], scores=[], codec=None, width=4):
     return np.transpose(vis.numpy(), [1, 2, 0])
 
 
-def visualize_batch(imgs_batch, boxes_batch=None, labels_batch=None, scores_batch=None, codec=None):
+def visualize_batch(imgs_batch, boxes_batch=None, labels_batch=None, scores_batch=None, codec=None, return_images=False):
     images_bhwc = tensor2numpy(imgs_batch).astype(np.uint8)
     vis_images = []
     for image_idx, image in enumerate(images_bhwc):
@@ -63,4 +63,7 @@ def visualize_batch(imgs_batch, boxes_batch=None, labels_batch=None, scores_batc
             
             image = visualize_boxes(image, boxes, labels, scores, codec=codec)
         vis_images.append(image)
-    plot_images_list(vis_images)
+    if return_images:
+        return vis_images
+    else:
+        plot_images_list(vis_images)
