@@ -106,6 +106,7 @@ class FcosTrainer:
                             self.model.eval()
 
                             val_imgs, val_boxes, val_labels = next(val_iterator)
+                            val_batch_size = len(val_imgs)
                             val_targets = self.encoder(val_boxes, val_labels)
                             val_imgs = val_imgs.to(self.device)
 
@@ -119,9 +120,28 @@ class FcosTrainer:
                             writer.add_scalar(f'Val/CenterLoss', val_loss['centerness'].detach(), global_step)
                             writer.add_scalar(f'Val/RegressionLoss', val_loss['regression'].detach(), global_step)
 
+                            val_threshold = 0.05
                             val_predictions = self.model._postprocessor(core_outputs, val_scales)
-
-                            # metrics = self.metrics_evaluator()
+                            metrics_pred, metrics_target = [], []
+                            for img_idx in range(val_batch_size):
+                                mask = val_predictions['scores'][img_idx] > val_threshold
+                                metrics_pred.append(
+                                    {
+                                        'scores': val_predictions['scores'][img_idx][mask].to('cpu'),
+                                        'boxes': val_predictions['boxes'][img_idx][mask].to('cpu'),
+                                        'labels': val_predictions['classes'][img_idx][mask].to('cpu'),
+                                    }
+                                )
+                                metrics_target.append(
+                                    {
+                                        'boxes': val_boxes[img_idx].to('cpu'),
+                                        'labels': val_labels[img_idx].to('cpu'),
+                                    }
+                                )
+                            self.metrics_evaluator.update(metrics_pred, metrics_target)
+                            metrics = self.metrics_evaluator.compute()
+                            print("\nMetrics:")
+                            print(metrics)
 
                             self.model.train()
                     except Exception as e:

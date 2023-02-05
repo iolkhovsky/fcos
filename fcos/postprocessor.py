@@ -59,6 +59,9 @@ class FcosPostprocessor(nn.Module):
             scales = [(1., 1.) * batch_size]
         img_scales = torch.Tensor(scales)
 
+        if self._centers.device != boxes.device:
+            self._centers = self._centers.to(boxes.device)
+
         out_boxes = []
         out_ids = []
         out_scores = []
