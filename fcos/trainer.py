@@ -6,7 +6,7 @@ from tqdm import tqdm
 import traceback
 
 from common.torch_utils import get_available_device
-from common.interval import Interval
+from common.interval import IntervalManager
 
 
 class FcosTrainer:
@@ -31,11 +31,7 @@ class FcosTrainer:
         self.scheduler = scheduler
         self.val_dataset = val_dataset
         self.autosave_period = autosave_period
-        if self.autosave_period:
-            assert isinstance(self.autosave_period, Interval)
         self.val_period = validation_period
-        if self.val_period:
-            assert isinstance(self.val_period, Interval)
         self.logs_root = logs_path
         self.checkpoints_root = checkpoints_path
         self.grad_clip = grad_clip
@@ -64,6 +60,9 @@ class FcosTrainer:
 
         self.model = self.model.train().to(self.device)
 
+        autosave_manager = IntervalManager(self.autosave_period)
+        valid_manager = IntervalManager(self.val_period)
+
         global_step = 0
         with tqdm(total=total_steps) as pbar:
             for epoch_idx in range(self.epochs):
@@ -85,6 +84,14 @@ class FcosTrainer:
                         writer.add_scalar(f'Train/ClassLoss', loss['classification'].detach(), global_step)
                         writer.add_scalar(f'Train/CenterLoss', loss['centerness'].detach(), global_step)
                         writer.add_scalar(f'Train/RegressionLoss', loss['regression'].detach(), global_step)
+
+                        if autosave_manager.check(global_step, epoch_idx):
+                            model_path = os.path.join(checkpoints_path, f"fcos_ep_{epoch_idx}_step_{step}")
+                            self.model.save(model_path)
+                            print(f"Model state dict has been saved to {model_path}")
+
+                        if valid_manager.check(global_step, epoch_idx):
+                            pass
                     except Exception as e:
                         print(f"Error: Got an unhandled exception during epoch {epoch_idx} step {step}")
                         print(traceback.format_exc())
