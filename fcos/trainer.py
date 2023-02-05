@@ -1,4 +1,5 @@
 import datetime
+import itertools
 import os
 import torch
 from torch.utils.tensorboard import SummaryWriter
@@ -54,6 +55,7 @@ class FcosTrainer:
 
         writer = SummaryWriter(logs_path)
 
+        val_iterator = itertools.cycle(iter(self.val_dataset))
         img_batch, _, _ = next(iter(self.train_dataset))
         total_batches = len(self.train_dataset)
         total_steps = total_batches * len(img_batch)
@@ -91,7 +93,23 @@ class FcosTrainer:
                             print(f"Model state dict has been saved to {model_path}")
 
                         if valid_manager.check(global_step, epoch_idx):
-                            pass
+                            self.model.eval()
+
+                            val_imgs, val_boxes, val_labels = next(val_iterator)
+                            val_targets = self.encoder(val_boxes, val_labels)
+                            val_imgs = val_imgs.to(self.device)
+
+                            preprocessed_imgs, _ = self.model._preprocessor(val_imgs)
+                            core_outputs = self.model._core(preprocessed_imgs)
+                            val_loss = self.model._loss(pred=core_outputs, target=val_targets)
+                            val_total_loss = val_loss['classification'] + val_loss['centerness'] + val_loss['regression']
+
+                            writer.add_scalar(f'Val/TotalLoss', val_total_loss.detach(), global_step)
+                            writer.add_scalar(f'Val/ClassLoss', val_loss['classification'].detach(), global_step)
+                            writer.add_scalar(f'Val/CenterLoss', val_loss['centerness'].detach(), global_step)
+                            writer.add_scalar(f'Val/RegressionLoss', val_loss['regression'].detach(), global_step)
+
+                            self.model.train()
                     except Exception as e:
                         print(f"Error: Got an unhandled exception during epoch {epoch_idx} step {step}")
                         print(traceback.format_exc())
