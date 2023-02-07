@@ -9,3 +9,6 @@ install:
 
 train:
 	python3 train.py --config=configs/train.yaml
+
+run:
+	python3 run.py --config=configs/run.yaml
