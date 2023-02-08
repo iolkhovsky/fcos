@@ -10,6 +10,7 @@ dataset:
   val:
     batch_size: 36
   root: vocdata
+  download: false
 optimizer:
   type: SGD
   parameters:
