@@ -9,6 +9,7 @@ dataset:
     batch_size: 16
   val:
     batch_size: 36
+  root: vocdata
 optimizer:
   type: SGD
   parameters:

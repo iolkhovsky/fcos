@@ -59,9 +59,9 @@ def collate(batch):
     return torch.Tensor(images), bboxes, labels
 
 
-def build_dataloader(subset='train', batch_size=4, shuffle=True, download=False):
+def build_dataloader(subset='train', batch_size=4, shuffle=True, download=False, root="vocdata"):
     dataset = torchvision.datasets.VOCDetection(
-        root="vocdata",
+        root=root,
         year="2012",
         image_set=subset,
         download=download,

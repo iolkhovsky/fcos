@@ -25,10 +25,11 @@ def compile_model(model_config):
 
 
 def compile_datasets(dataset_config):
+    root = dataset_config["root"]
     train_dataloader = dataset.build_dataloader(
-        'train', batch_size=dataset_config['train']['batch_size'])
+        'train', batch_size=dataset_config['train']['batch_size'], root=root)
     val_dataloader = dataset.build_dataloader(
-        'val', batch_size=dataset_config['val']['batch_size'])
+        'val', batch_size=dataset_config['val']['batch_size'], root=root)
     return train_dataloader, val_dataloader
 
 
