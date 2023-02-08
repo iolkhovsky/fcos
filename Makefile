@@ -17,7 +17,7 @@ train: FORCE
 FORCE:
 
 train_colab: FORCE
-	python train.pu --config=$TRAINING_CONFIG
+	python train.pu --config=${TRAINING_CONFIG}
 FORCE:
 
 run: FORCE
