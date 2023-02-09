@@ -132,6 +132,24 @@ class FcosTrainer:
                         loss = self.model(imgs, targets)
 
                         total_loss = loss['classification'] + loss['centerness'] + loss['regression']
+                        skip = False
+
+                        if torch.any(torch.isnan(loss['centerness'])):
+                            print(f"Centerness loss is NaN on step {global_step}")
+                            skip = True
+                        if torch.any(torch.isnan(loss['classification'])):
+                            print(f"Classification loss is NaN on step {global_step}")
+                            skip = True
+                        if torch.any(torch.isnan(loss['regression'])):
+                            print(f"Regression loss is NaN on step {global_step}")
+                            skip = True
+
+                        if skip:
+                            print("Inputs:")
+                            print(f"boxes:\t{boxes}")
+                            print(f"labels:\t{labels}")
+                            continue
+
                         total_loss.backward()
                         if self.grad_clip:
                             torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip)
