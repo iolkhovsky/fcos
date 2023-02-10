@@ -155,10 +155,10 @@ class FcosTrainer:
                             torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip)
                         self.optimizer.step()
 
-                        writer.add_scalar(f'Train/TotalLoss', total_loss.detach(), global_step)
-                        writer.add_scalar(f'Train/ClassLoss', loss['classification'].detach(), global_step)
-                        writer.add_scalar(f'Train/CenterLoss', loss['centerness'].detach(), global_step)
-                        writer.add_scalar(f'Train/RegressionLoss', loss['regression'].detach(), global_step)
+                        writer.add_scalar(f'Train/TotalLoss', total_loss.detach().numpy(), global_step)
+                        writer.add_scalar(f'Train/ClassLoss', loss['classification'].detach().numpy(), global_step)
+                        writer.add_scalar(f'Train/CenterLoss', loss['centerness'].detach().numpy(), global_step)
+                        writer.add_scalar(f'Train/RegressionLoss', loss['regression'].detach().numpy(), global_step)
 
                         if autosave_manager.check(global_step, epoch_idx):
                             model_path = os.path.join(checkpoints_path, f"fcos_ep_{epoch_idx}_step_{step}")
@@ -178,10 +178,10 @@ class FcosTrainer:
                             val_loss = self.model._loss(pred=core_outputs, target=val_targets)
                             val_total_loss = val_loss['classification'] + val_loss['centerness'] + val_loss['regression']
 
-                            writer.add_scalar(f'Val/TotalLoss', val_total_loss.detach(), global_step)
-                            writer.add_scalar(f'Val/ClassLoss', val_loss['classification'].detach(), global_step)
-                            writer.add_scalar(f'Val/CenterLoss', val_loss['centerness'].detach(), global_step)
-                            writer.add_scalar(f'Val/RegressionLoss', val_loss['regression'].detach(), global_step)
+                            writer.add_scalar(f'Val/TotalLoss', val_total_loss.detach().numpy(), global_step)
+                            writer.add_scalar(f'Val/ClassLoss', val_loss['classification'].detach().numpy(), global_step)
+                            writer.add_scalar(f'Val/CenterLoss', val_loss['centerness'].detach().numpy(), global_step)
+                            writer.add_scalar(f'Val/RegressionLoss', val_loss['regression'].detach().numpy(), global_step)
 
                             val_threshold = 0.05
                             val_predictions = self.model._postprocessor(core_outputs, val_scales)
