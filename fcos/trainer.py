@@ -1,5 +1,6 @@
 import datetime
 import itertools
+import numpy as np
 import os
 import torch
 from torch.utils.tensorboard import SummaryWriter
@@ -131,19 +132,19 @@ class FcosTrainer:
                         imgs = imgs.to(self.device)
                         loss = self.model(imgs, targets)
 
-                        total_loss = loss['classification'] + loss['centerness'] + loss['regression']
-                        skip = False
+                        total_loss = loss['total']
 
-                        if torch.any(torch.isnan(loss['centerness'])):
+                        # TODO Remove this debug catch
+                        skip = False
+                        if np.any(np.isnan(loss['centerness'])):
                             print(f"Centerness loss is NaN on step {global_step}")
                             skip = True
-                        if torch.any(torch.isnan(loss['classification'])):
+                        if np.any(np.isnan(loss['classification'])):
                             print(f"Classification loss is NaN on step {global_step}")
                             skip = True
-                        if torch.any(torch.isnan(loss['regression'])):
+                        if np.any(np.isnan(loss['regression'])):
                             print(f"Regression loss is NaN on step {global_step}")
                             skip = True
-
                         if skip:
                             print("Inputs:")
                             print(f"boxes:\t{boxes}")
@@ -154,11 +155,12 @@ class FcosTrainer:
                         if self.grad_clip:
                             torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip)
                         self.optimizer.step()
+                        total_loss = total_loss.detach().cpu().numpy()
 
-                        writer.add_scalar(f'Train/TotalLoss', total_loss.detach().cpu().numpy(), global_step)
-                        writer.add_scalar(f'Train/ClassLoss', loss['classification'].detach().cpu().numpy(), global_step)
-                        writer.add_scalar(f'Train/CenterLoss', loss['centerness'].detach().cpu().numpy(), global_step)
-                        writer.add_scalar(f'Train/RegressionLoss', loss['regression'].detach().cpu().numpy(), global_step)
+                        writer.add_scalar(f'Train/TotalLoss', total_loss, global_step)
+                        writer.add_scalar(f'Train/ClassLoss', loss['classification'], global_step)
+                        writer.add_scalar(f'Train/CenterLoss', loss['centerness'], global_step)
+                        writer.add_scalar(f'Train/RegressionLoss', loss['regression'], global_step)
 
                         if autosave_manager.check(global_step, epoch_idx):
                             model_path = os.path.join(checkpoints_path, f"fcos_ep_{epoch_idx}_step_{step}")
@@ -176,12 +178,12 @@ class FcosTrainer:
                             preprocessed_imgs, val_scales = self.model._preprocessor(val_imgs)
                             core_outputs = self.model._core(preprocessed_imgs)
                             val_loss = self.model._loss(pred=core_outputs, target=val_targets)
-                            val_total_loss = val_loss['classification'] + val_loss['centerness'] + val_loss['regression']
+                            val_total_loss = val_loss['total'].detach().cpu().numpy()
 
-                            writer.add_scalar(f'Val/TotalLoss', val_total_loss.detach().cpu().numpy(), global_step)
-                            writer.add_scalar(f'Val/ClassLoss', val_loss['classification'].detach().cpu().numpy(), global_step)
-                            writer.add_scalar(f'Val/CenterLoss', val_loss['centerness'].detach().cpu().numpy(), global_step)
-                            writer.add_scalar(f'Val/RegressionLoss', val_loss['regression'].detach().cpu().numpy(), global_step)
+                            writer.add_scalar(f'Val/TotalLoss', val_total_loss, global_step)
+                            writer.add_scalar(f'Val/ClassLoss', val_loss['classification'], global_step)
+                            writer.add_scalar(f'Val/CenterLoss', val_loss['centerness'], global_step)
+                            writer.add_scalar(f'Val/RegressionLoss', val_loss['regression'], global_step)
 
                             val_threshold = 0.05
                             val_predictions = self.model._postprocessor(core_outputs, val_scales)
@@ -190,15 +192,15 @@ class FcosTrainer:
                                 mask = val_predictions['scores'][img_idx] > val_threshold
                                 metrics_pred.append(
                                     {
-                                        'scores': val_predictions['scores'][img_idx][mask].to('cpu'),
-                                        'boxes': val_predictions['boxes'][img_idx][mask].to('cpu'),
-                                        'labels': val_predictions['classes'][img_idx][mask].to('cpu'),
+                                        'scores': val_predictions['scores'][img_idx][mask].to('cpu').detach().numpy(),
+                                        'boxes': val_predictions['boxes'][img_idx][mask].to('cpu').detach().numpy(),
+                                        'labels': val_predictions['classes'][img_idx][mask].to('cpu').detach().numpy(),
                                     }
                                 )
                                 metrics_target.append(
                                     {
-                                        'boxes': val_boxes[img_idx].to('cpu'),
-                                        'labels': val_labels[img_idx].to('cpu'),
+                                        'boxes': val_boxes[img_idx].to('cpu').detach().numpy(),
+                                        'labels': val_labels[img_idx].to('cpu').detach().numpy(),
                                     }
                                 )
                             self.metrics_evaluator.update(metrics_pred, metrics_target)
@@ -228,7 +230,7 @@ class FcosTrainer:
 
                     pbar.set_description(
                         f"Epoch: {epoch_idx}/{self.epochs} "
-                        f"Step {step}/{total_steps} Loss: {total_loss.detach().cpu().numpy()}"
+                        f"Step {step}/{total_steps} Loss: {total_loss}"
                     )
                     pbar.update(1)
                     global_step += 1

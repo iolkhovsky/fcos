@@ -85,8 +85,7 @@ class FcosLoss(nn.Module):
         positive_samples = torch.sum(target_classes, axis=-1)  
         positive_mask = positive_samples > 0
         positive_samples_cnt = torch.sum(positive_mask)
-        if positive_samples_cnt == 0:
-            return None
+        assert positive_samples_cnt > 0, f"Targets dont contain any objects"
 
         class_loss = self._clf_loss(
             pred_classes,
@@ -111,8 +110,11 @@ class FcosLoss(nn.Module):
         )
         regression_loss = aggregator(regression_loss) / positive_samples_cnt
 
+        total_loss = class_loss + centerness_loss + regression_loss
+
         return {
-            'classification': class_loss,
-            'centerness': centerness_loss,
-            'regression': regression_loss,
+            'total': total_loss,
+            'classification': class_loss.cpu().detach().numpy(),
+            'centerness': centerness_loss.cpu().detach().numpy(),
+            'regression': regression_loss.cpu().detach().numpy(),
         }
