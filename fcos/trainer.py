@@ -4,6 +4,7 @@ import gc
 import itertools
 import numpy as np
 import os
+import time
 import torch
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
@@ -15,6 +16,7 @@ from dataset.visualization import visualize_batch
 from dataset.loader import disbatch
 from common.torch_utils import get_available_device
 from common.interval import IntervalManager
+from common.utils import get_ram_consumption_bytes
 
 
 class FcosTrainer:
@@ -30,7 +32,8 @@ class FcosTrainer:
                  validation_period=None,
                  logs_path=None,
                  checkpoints_path=None,
-                 grad_clip=None):
+                 grad_clip=None,
+                 val_threshold=0.25):
         self.model = model
         self.optimizer = optimizer
         self.train_dataset = train_dataset
@@ -43,6 +46,7 @@ class FcosTrainer:
         self.logs_root = logs_path
         self.checkpoints_root = checkpoints_path
         self.grad_clip = grad_clip
+        self.val_threshold = val_threshold
 
         self.device = get_available_device()
         self.metrics_evaluator = MeanAveragePrecision(
@@ -139,6 +143,7 @@ class FcosTrainer:
         self.writer.add_scalar(f'Train/ClassLoss', loss['classification'], global_step)
         self.writer.add_scalar(f'Train/CenterLoss', loss['centerness'], global_step)
         self.writer.add_scalar(f'Train/RegressionLoss', loss['regression'], global_step)
+        self.writer.add_scalar(f'Resources/RAM', get_ram_consumption_bytes() / (2 ** 20), global_step)
 
         if self.autosave_manager.check(global_step, epoch_idx):
             model_path = os.path.join(self.checkpoints_path, f"fcos_ep_{epoch_idx}_step_{global_step}")
@@ -146,6 +151,7 @@ class FcosTrainer:
             print(f"Model state dict has been saved to {model_path}")
 
         if self.valid_manager.check(global_step, epoch_idx):
+            val_step_start = time.time()
             self.model.eval()
 
             val_imgs, val_boxes, val_labels, val_objects_cnt = next(val_iterator)
@@ -165,11 +171,10 @@ class FcosTrainer:
             self.writer.add_scalar(f'Val/RegressionLoss', val_loss['regression'], global_step)
 
             val_boxes, val_labels = disbatch(val_boxes, val_labels, val_objects_cnt)
-            val_threshold = 0.05
             val_predictions = self.model._postprocessor(core_outputs, val_scales)
             metrics_pred, metrics_target = [], []
             for img_idx in range(val_batch_size):
-                mask = val_predictions['scores'][img_idx] > val_threshold
+                mask = val_predictions['scores'][img_idx] > self.val_threshold
                 metrics_pred.append(
                     {
                         'scores': tensor2cpu(val_predictions['scores'][img_idx][mask]),
@@ -202,6 +207,7 @@ class FcosTrainer:
                 step=global_step,
                 threshold=0.1,
             )
+            self.writer.add_scalar(f'Resources/ValStepSec', time.time() - val_step_start, global_step)
 
         gc.collect()
         return total_loss

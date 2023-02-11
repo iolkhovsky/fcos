@@ -79,6 +79,7 @@ def run_training(args):
     epochs = config['epochs']
     autosave_period = Interval.from_config(config['autosave_period'])
     validation_period = Interval.from_config(config['validation_period'])
+    val_threshold = config['val_threshold']
 
     logs_path = config['logs']['path']
     checkpoints_path = config['checkpoints']['path']
@@ -96,6 +97,7 @@ def run_training(args):
         logs_path=logs_path,
         checkpoints_path=checkpoints_path,
         grad_clip=grad_clip,
+        val_threshold=val_threshold,
     )
     trainer.run()
 
