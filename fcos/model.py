@@ -29,8 +29,8 @@ class FCOS(nn.Module):
         torch.save(self.state_dict(), path)
 
     @staticmethod
-    def load(path, backbone, labels_codec, res=(512, 512)):
+    def load(path, backbone, labels_codec, res=(512, 512), device='cpu'):
         model = FCOS(backbone, labels_codec, res)
-        model.load_state_dict(torch.load(path))
+        model.load_state_dict(torch.load(path, map_location=device))
         model.eval()
         return model
