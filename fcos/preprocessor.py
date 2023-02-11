@@ -6,7 +6,7 @@ import numpy as np
 
 class FcosPreprocessor(nn.Module):
     def __init__(self, target_resolution=(512, 512)):
-        super().__init__()
+        super(FcosPreprocessor, self).__init__()
         self._height, self._width = target_resolution
         self._normalize = torchvision.transforms.Normalize(
             mean=[0.485, 0.456, 0.406],

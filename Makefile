@@ -20,6 +20,10 @@ train_colab: FORCE
 	python train.pu --config=${TRAINING_CONFIG}
 FORCE:
 
+train_memprof: FORCE
+	python -m memory_profiler train.py --config=configs/train.yaml
+FORCE:
+
 run: FORCE
 	python3 run.py --config=configs/run.yaml
 FORCE:

@@ -1,7 +1,6 @@
 import numpy as np
 import torch
 from torch import nn
-from torch.nn import init
 
 
 class Conv2dBN(nn.Module):
@@ -9,7 +8,7 @@ class Conv2dBN(nn.Module):
                  padding=1, bias=True, bias_value=None, bias_pi=None,
                  activation='LeakyReLU', activation_pars={'negative_slope': 0.01},
                  batch_norm=True, initializer=None):
-        super().__init__()
+        super(Conv2dBN, self).__init__()
         self.conv = nn.Conv2d(
             in_channels=in_channels,
             out_channels=out_channels,

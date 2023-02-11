@@ -24,10 +24,10 @@ scheduler:
     verbose: false 
 epochs: 10
 autosave_period:
-  value: 10
+  value: 5
   type: min
 validation_period:
-  value: 5
+  value: 1
   type: min
 logs:
   path: logs

@@ -81,6 +81,7 @@ def test_decode_predictions():
     batch_size = test_boxes
 
     encoded_gt = encoder(test_boxes, test_labels)
+    encoded_gt = {k: torch.tensor(v) for k, v in encoded_gt.items()}
     postprocessor = FcosPostprocessor(img_res)
     decoded = postprocessor(encoded_gt, scales=img_scales)
 

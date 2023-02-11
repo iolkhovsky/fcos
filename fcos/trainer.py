@@ -1,4 +1,5 @@
 import datetime
+import gc
 import itertools
 import numpy as np
 import os
@@ -42,7 +43,6 @@ class FcosTrainer:
         self.grad_clip = grad_clip
 
         self.device = get_available_device()
-
         self.metrics_evaluator = MeanAveragePrecision(
             box_format='xyxy',
             iou_type='bbox',
@@ -51,6 +51,10 @@ class FcosTrainer:
             max_detection_thresholds=None,
             class_metrics=False,
         )
+        self.writer = None
+        self.checkpoints_path = None
+        self.autosave_manager = None
+        self.valid_manager = None
 
     @staticmethod
     def visualize_prediction(images, predictions, target_boxes,
@@ -94,6 +98,109 @@ class FcosTrainer:
         target_grid = torchvision.utils.make_grid(target_images_tensors)
         writer.add_image(f'Target', target_grid, step)
 
+    def make_step(self, imgs, boxes, labels, val_iterator, global_step, epoch_idx):
+        self.optimizer.zero_grad()
+
+        targets = self.encoder(boxes, labels)
+        targets = {k: torch.tensor(v, device=self.device) for k, v in targets.items()}
+        imgs = imgs.to(self.device)
+
+        loss = self.model(imgs, targets)
+        total_loss = loss['total']
+
+        # TODO Remove this debug catch
+        skip = False
+        if np.any(np.isnan(loss['centerness'])):
+            print(f"Centerness loss is NaN on step {global_step}")
+            skip = True
+        if np.any(np.isnan(loss['classification'])):
+            print(f"Classification loss is NaN on step {global_step}")
+            skip = True
+        if np.any(np.isnan(loss['regression'])):
+            print(f"Regression loss is NaN on step {global_step}")
+            skip = True
+        if skip:
+            print("Inputs:")
+            print(f"boxes:\t{boxes}")
+            print(f"labels:\t{labels}")
+            return np.nan
+
+        total_loss.backward()
+        if self.grad_clip:
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip)
+        self.optimizer.step()
+        total_loss = total_loss.detach().cpu().numpy()
+
+        self.writer.add_scalar(f'Train/TotalLoss', total_loss, global_step)
+        self.writer.add_scalar(f'Train/ClassLoss', loss['classification'], global_step)
+        self.writer.add_scalar(f'Train/CenterLoss', loss['centerness'], global_step)
+        self.writer.add_scalar(f'Train/RegressionLoss', loss['regression'], global_step)
+
+        if self.autosave_manager.check(global_step, epoch_idx):
+            model_path = os.path.join(self.checkpoints_path, f"fcos_ep_{epoch_idx}_step_{global_step}")
+            self.model.save(model_path)
+            print(f"Model state dict has been saved to {model_path}")
+
+        if self.valid_manager.check(global_step, epoch_idx):
+            self.model.eval()
+
+            val_imgs, val_boxes, val_labels = next(val_iterator)
+            val_batch_size = len(val_imgs)
+            val_targets = self.encoder(val_boxes, val_labels)
+            val_targets = {k: torch.tensor(v, device=self.device) for k, v in val_targets.items()}
+            val_imgs = val_imgs.to(self.device)
+
+            preprocessed_imgs, val_scales = self.model._preprocessor(val_imgs)
+            core_outputs = self.model._core(preprocessed_imgs)
+            val_loss = self.model._loss(pred=core_outputs, target=val_targets)
+            val_total_loss = val_loss['total'].detach().cpu().numpy()
+
+            self.writer.add_scalar(f'Val/TotalLoss', val_total_loss, global_step)
+            self.writer.add_scalar(f'Val/ClassLoss', val_loss['classification'], global_step)
+            self.writer.add_scalar(f'Val/CenterLoss', val_loss['centerness'], global_step)
+            self.writer.add_scalar(f'Val/RegressionLoss', val_loss['regression'], global_step)
+
+            val_threshold = 0.05
+            val_predictions = self.model._postprocessor(core_outputs, val_scales)
+            metrics_pred, metrics_target = [], []
+            for img_idx in range(val_batch_size):
+                mask = val_predictions['scores'][img_idx] > val_threshold
+                metrics_pred.append(
+                    {
+                        'scores': val_predictions['scores'][img_idx][mask].to('cpu').detach(),
+                        'boxes': val_predictions['boxes'][img_idx][mask].to('cpu').detach(),
+                        'labels': val_predictions['classes'][img_idx][mask].to('cpu').detach(),
+                    }
+                )
+                metrics_target.append(
+                    {
+                        'boxes': val_boxes[img_idx].to('cpu').detach(),
+                        'labels': val_labels[img_idx].to('cpu').detach(),
+                    }
+                )
+            self.metrics_evaluator.update(metrics_pred, metrics_target)
+            metrics = self.metrics_evaluator.compute()
+            self.writer.add_scalar(f'Metrics/mAP', metrics['map'], global_step)
+            self.writer.add_scalar(f'Metrics/mAP@50', metrics['map_50'], global_step)
+            self.writer.add_scalar(f'Metrics/mAP@75', metrics['map_75'], global_step)
+            self.writer.add_scalar(f'Metrics/mAP-small', metrics['map_small'], global_step)
+            self.writer.add_scalar(f'Metrics/mAP-medium', metrics['map_medium'], global_step)
+            self.writer.add_scalar(f'Metrics/mAP-large', metrics['map_large'], global_step)
+
+            FcosTrainer.visualize_prediction(
+                images=val_imgs,
+                predictions=val_predictions,
+                target_boxes=val_boxes,
+                target_labels=val_labels,
+                labels_codec=self.model._labels,
+                writer=self.writer,
+                step=global_step,
+                threshold=0.1,
+            )
+
+            self.model.train()
+        gc.collect()
+        return total_loss
 
     def run(self):
         session_timestamp = str(datetime.datetime.now())
@@ -103,13 +210,13 @@ class FcosTrainer:
             session_timestamp,
         )
         os.makedirs(logs_path)
-        checkpoints_path = os.path.join(
+        self.checkpoints_path = os.path.join(
             self.checkpoints_root,
             session_timestamp,
         )
-        os.makedirs(checkpoints_path)
+        os.makedirs(self.checkpoints_path)
 
-        writer = SummaryWriter(logs_path)
+        self.writer = SummaryWriter(logs_path)
 
         val_iterator = itertools.cycle(iter(self.val_dataset))
         img_batch, _, _ = next(iter(self.train_dataset))
@@ -118,112 +225,15 @@ class FcosTrainer:
 
         self.model = self.model.train().to(self.device)
 
-        autosave_manager = IntervalManager(self.autosave_period)
-        valid_manager = IntervalManager(self.val_period)
+        self.autosave_manager = IntervalManager(self.autosave_period)
+        self.valid_manager = IntervalManager(self.val_period)
 
         global_step = 0
         with tqdm(total=total_steps) as pbar:
             for epoch_idx in range(self.epochs):
                 for step, (imgs, boxes, labels) in enumerate(self.train_dataset):
                     try:
-                        self.optimizer.zero_grad()
-
-                        targets = self.encoder(boxes, labels)
-                        imgs = imgs.to(self.device)
-                        loss = self.model(imgs, targets)
-
-                        total_loss = loss['total']
-
-                        # TODO Remove this debug catch
-                        skip = False
-                        if np.any(np.isnan(loss['centerness'])):
-                            print(f"Centerness loss is NaN on step {global_step}")
-                            skip = True
-                        if np.any(np.isnan(loss['classification'])):
-                            print(f"Classification loss is NaN on step {global_step}")
-                            skip = True
-                        if np.any(np.isnan(loss['regression'])):
-                            print(f"Regression loss is NaN on step {global_step}")
-                            skip = True
-                        if skip:
-                            print("Inputs:")
-                            print(f"boxes:\t{boxes}")
-                            print(f"labels:\t{labels}")
-                            continue
-
-                        total_loss.backward()
-                        if self.grad_clip:
-                            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip)
-                        self.optimizer.step()
-                        total_loss = total_loss.detach().cpu().numpy()
-
-                        writer.add_scalar(f'Train/TotalLoss', total_loss, global_step)
-                        writer.add_scalar(f'Train/ClassLoss', loss['classification'], global_step)
-                        writer.add_scalar(f'Train/CenterLoss', loss['centerness'], global_step)
-                        writer.add_scalar(f'Train/RegressionLoss', loss['regression'], global_step)
-
-                        if autosave_manager.check(global_step, epoch_idx):
-                            model_path = os.path.join(checkpoints_path, f"fcos_ep_{epoch_idx}_step_{step}")
-                            self.model.save(model_path)
-                            print(f"Model state dict has been saved to {model_path}")
-
-                        if valid_manager.check(global_step, epoch_idx):
-                            self.model.eval()
-
-                            val_imgs, val_boxes, val_labels = next(val_iterator)
-                            val_batch_size = len(val_imgs)
-                            val_targets = self.encoder(val_boxes, val_labels)
-                            val_imgs = val_imgs.to(self.device)
-
-                            preprocessed_imgs, val_scales = self.model._preprocessor(val_imgs)
-                            core_outputs = self.model._core(preprocessed_imgs)
-                            val_loss = self.model._loss(pred=core_outputs, target=val_targets)
-                            val_total_loss = val_loss['total'].detach().cpu().numpy()
-
-                            writer.add_scalar(f'Val/TotalLoss', val_total_loss, global_step)
-                            writer.add_scalar(f'Val/ClassLoss', val_loss['classification'], global_step)
-                            writer.add_scalar(f'Val/CenterLoss', val_loss['centerness'], global_step)
-                            writer.add_scalar(f'Val/RegressionLoss', val_loss['regression'], global_step)
-
-                            val_threshold = 0.05
-                            val_predictions = self.model._postprocessor(core_outputs, val_scales)
-                            metrics_pred, metrics_target = [], []
-                            for img_idx in range(val_batch_size):
-                                mask = val_predictions['scores'][img_idx] > val_threshold
-                                metrics_pred.append(
-                                    {
-                                        'scores': val_predictions['scores'][img_idx][mask].to('cpu').detach().numpy(),
-                                        'boxes': val_predictions['boxes'][img_idx][mask].to('cpu').detach().numpy(),
-                                        'labels': val_predictions['classes'][img_idx][mask].to('cpu').detach().numpy(),
-                                    }
-                                )
-                                metrics_target.append(
-                                    {
-                                        'boxes': val_boxes[img_idx].to('cpu').detach().numpy(),
-                                        'labels': val_labels[img_idx].to('cpu').detach().numpy(),
-                                    }
-                                )
-                            self.metrics_evaluator.update(metrics_pred, metrics_target)
-                            metrics = self.metrics_evaluator.compute()
-                            writer.add_scalar(f'Metrics/mAP', metrics['map'], global_step)
-                            writer.add_scalar(f'Metrics/mAP@50', metrics['map_50'], global_step)
-                            writer.add_scalar(f'Metrics/mAP@75', metrics['map_75'], global_step)
-                            writer.add_scalar(f'Metrics/mAP-small', metrics['map_small'], global_step)
-                            writer.add_scalar(f'Metrics/mAP-medium', metrics['map_medium'], global_step)
-                            writer.add_scalar(f'Metrics/mAP-large', metrics['map_large'], global_step)
-
-                            FcosTrainer.visualize_prediction(
-                                images=val_imgs,
-                                predictions=val_predictions,
-                                target_boxes=val_boxes,
-                                target_labels=val_labels,
-                                labels_codec=self.model._labels,
-                                writer=writer,
-                                step=global_step,
-                                threshold=0.1,
-                            )
-
-                            self.model.train()
+                        total_loss = self.make_step(imgs, boxes, labels, val_iterator, global_step, epoch_idx)
                     except Exception as e:
                         print(f"Error: Got an unhandled exception during epoch {epoch_idx} step {step}")
                         print(traceback.format_exc())

@@ -102,7 +102,7 @@ def test_encoder():
                 for x_pos in range(level_xsz):
                     plane_idx = y_pos * level_ysz + x_pos
                     scores = level_classes[img_idx, plane_idx, :]
-                    positive_position = torch.any(scores)
+                    positive_position = torch.any(torch.tensor(scores))
                     if positive_position:
                         assert len(test_boxes[img_idx]) > 0
 
@@ -127,5 +127,10 @@ def test_encoder():
                         
                         if smallest_box is not None:
                             target_cntr, target_ltrb = encoder._encode_box_at(smallest_box, level, y_pos, x_pos)
-                            assert torch.all(torch.eq(target_ltrb, torch.tensor(ltrb)))
-                            assert cntr == target_cntr
+                            assert torch.all(
+                                torch.isclose(
+                                    torch.tensor(target_ltrb, dtype=torch.float),
+                                    torch.tensor(ltrb, dtype=torch.float)
+                                )
+                            )
+                            assert cntr == pytest.approx(target_cntr)

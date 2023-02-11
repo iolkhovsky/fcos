@@ -6,7 +6,7 @@ from fcos.layers import Conv2dBN
 
 class RegressionHead(nn.Module):
     def __init__(self, layers=4, in_channels=256, intermediate_channels=256, scale=1.):
-        super().__init__()
+        super(RegressionHead, self).__init__()
 
         def _initializer(weights):
             nn.init.kaiming_normal_(weights, nonlinearity='relu')
@@ -52,7 +52,7 @@ class RegressionHead(nn.Module):
 
 class ClassificationHead(nn.Module):
     def __init__(self, classes, layers=4, in_channels=256, intermediate_channels=256):
-        super().__init__()
+        super(ClassificationHead, self).__init__()
 
         def _initializer(weights):
             nn.init.kaiming_normal_(weights, nonlinearity='relu')

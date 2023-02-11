@@ -4,7 +4,7 @@ from torch import nn
 
 class FcosPostprocessor(nn.Module):
     def __init__(self, img_res, scales=None):
-        super().__init__()
+        super(FcosPostprocessor, self).__init__()
         if scales is None:
             scales = [2 ** idx for idx in range(3, 7 + 1)]
         self._centers = FcosPostprocessor.generate_centers(

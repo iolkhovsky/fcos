@@ -1,4 +1,5 @@
 import os
+import psutil
 import yaml
 import json
 
@@ -23,3 +24,8 @@ def pretty_print(dict_data):
         sort_keys=True,
         indent=4
     ))
+
+
+def get_ram_consumption_bytes():
+    process = psutil.Process(os.getpid())
+    return process.memory_info().rss
