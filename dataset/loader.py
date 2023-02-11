@@ -1,5 +1,6 @@
 import albumentations as A
 import numpy as np
+import itertools
 import torchvision
 import torch
 from torch.utils.data import DataLoader
@@ -47,21 +48,34 @@ class VocPreprocessor:
 
 def collate(batch):
     codec = VocLabelsCodec()
-    images, bboxes, labels = [], [], []
+    images, bboxes, labels, objects_cnt = [], [], [], []
     for image, img_targets in batch:
         images.append(image)
         img_boxes, img_labels = [], []
         for obj in img_targets:
             img_boxes.append(obj[:-1])
             img_labels.append(codec.encode(obj[-1]))
-        bboxes.append(torch.FloatTensor(img_boxes))
-        labels.append(torch.IntTensor(img_labels))
-    return torch.Tensor(images), bboxes, labels
+        bboxes.extend(img_boxes)
+        labels.extend(img_labels)
+        objects_cnt.append(len(img_labels))
+    return (
+        torch.Tensor(images),
+        torch.FloatTensor(np.asarray(bboxes)),
+        torch.IntTensor(np.asarray(labels)),
+        torch.IntTensor(np.asarray(objects_cnt)),
+    )
 
 
-def build_dataloader(subset='train', batch_size=4, shuffle=True, download=False):
+def disbatch(boxes, labels, obj_amount):
+    offsets = list(itertools.accumulate(obj_amount, initial=0))
+    boxes = [boxes[offset:offset + objects_num] for objects_num, offset in zip(obj_amount, offsets)]
+    labels = [labels[offset:offset + objects_num] for objects_num, offset in zip(obj_amount, offsets)]
+    return boxes, labels
+
+
+def build_dataloader(subset='train', batch_size=4, shuffle=True, download=False, root="vocdata"):
     dataset = torchvision.datasets.VOCDetection(
-        root="vocdata",
+        root=root,
         year="2012",
         image_set=subset,
         download=download,

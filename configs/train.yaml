@@ -9,6 +9,8 @@ dataset:
     batch_size: 16
   val:
     batch_size: 36
+  root: vocdata
+  download: false
 optimizer:
   type: SGD
   parameters:
@@ -22,12 +24,14 @@ scheduler:
     verbose: false 
 epochs: 10
 autosave_period:
-  value: 1
+  value: 5
   type: min
 validation_period:
-  value: 10
-  type: step
+  value: 1
+  type: min
 logs:
   path: logs
 checkpoints:
   path: checkpoints
+gradient_clip: 1.0
+val_threshold: 0.25

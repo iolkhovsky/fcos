@@ -17,7 +17,11 @@ def get_available_device(verbose=True):
     return exec_device
 
 
-def tensor2numpy(tensor):
+def tensor2cpu(tensor):
     if tensor.requires_grad:
         tensor = tensor.detach()
-    return tensor.cpu().numpy()
+    return tensor.cpu()
+
+
+def tensor2numpy(tensor):
+    return tensor2cpu(tensor).numpy()

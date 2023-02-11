@@ -25,10 +25,20 @@ def compile_model(model_config):
 
 
 def compile_datasets(dataset_config):
+    root = dataset_config["root"]
+    download = bool(dataset_config["download"])
     train_dataloader = dataset.build_dataloader(
-        'train', batch_size=dataset_config['train']['batch_size'])
+        subset='train',
+        batch_size=dataset_config['train']['batch_size'],
+        root=root,
+        download=download
+    )
     val_dataloader = dataset.build_dataloader(
-        'val', batch_size=dataset_config['val']['batch_size'])
+        subset='val',
+        batch_size=dataset_config['val']['batch_size'],
+        root=root,
+        download=download
+    )
     return train_dataloader, val_dataloader
 
 
@@ -64,10 +74,12 @@ def run_training(args):
     model = compile_model(model_config)
     optimizer = compile_optimizer(model.parameters(), config['optimizer'])
     scheduler = compile_scheduler(optimizer, config['scheduler'])
+    grad_clip = float(config['gradient_clip'])
 
     epochs = config['epochs']
     autosave_period = Interval.from_config(config['autosave_period'])
     validation_period = Interval.from_config(config['validation_period'])
+    val_threshold = config['val_threshold']
 
     logs_path = config['logs']['path']
     checkpoints_path = config['checkpoints']['path']
@@ -84,6 +96,8 @@ def run_training(args):
         validation_period=validation_period,
         logs_path=logs_path,
         checkpoints_path=checkpoints_path,
+        grad_clip=grad_clip,
+        val_threshold=val_threshold,
     )
     trainer.run()
 

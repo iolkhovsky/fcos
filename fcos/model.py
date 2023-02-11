@@ -10,7 +10,7 @@ from fcos.postprocessor import FcosPostprocessor
 
 class FCOS(nn.Module):
     def __init__(self, backbone, labels_codec, res=(512, 512)):
-        super().__init__()
+        super(FCOS, self).__init__()
         self._labels = labels_codec
         self._preprocessor = FcosPreprocessor(res)
         self._core = FcosCore(backbone, len(self._labels))

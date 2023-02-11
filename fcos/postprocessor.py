@@ -4,7 +4,7 @@ from torch import nn
 
 class FcosPostprocessor(nn.Module):
     def __init__(self, img_res, scales=None):
-        super().__init__()
+        super(FcosPostprocessor, self).__init__()
         if scales is None:
             scales = [2 ** idx for idx in range(3, 7 + 1)]
         self._centers = FcosPostprocessor.generate_centers(
@@ -58,6 +58,9 @@ class FcosPostprocessor(nn.Module):
         if scales is None:
             scales = [(1., 1.) * batch_size]
         img_scales = torch.Tensor(scales)
+
+        if self._centers.device != boxes.device:
+            self._centers = self._centers.to(boxes.device)
 
         out_boxes = []
         out_ids = []

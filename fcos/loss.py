@@ -12,7 +12,7 @@ class FocalLoss(nn.Module):
 
     def forward(self, pred, target):
         if self._apply_sigmoid:
-            pred = pred.sigmoid()
+            pred = F.sigmoid(pred)
         ce = F.binary_cross_entropy(pred, target, reduction='none')
         alpha = target * self._alpha + (1. - target) * (1. - self._alpha)
         pt = torch.where(target == 1,  pred, 1 - pred)
@@ -29,38 +29,40 @@ class CenternessLoss(nn.Module):
 
     def forward(self, pred, target):
         if self._apply_sigmoid:
-            pred = pred.sigmoid()
-        clamped_pred = self._clamper(pred)
-        clamped_target = self._clamper(target)
-        return self._criterion(clamped_pred, clamped_target)
+            pred = F.sigmoid(pred)
+        pred = self._clamper(pred)
+        target = self._clamper(target)
+        return self._criterion(pred, target)
 
 
 class IoULoss(nn.Module):
-    def __init__(self, type='iou'):
+    def __init__(self):
         super(IoULoss, self).__init__()
-        self._type=type
 
-    def forward(self, pred, target):     
-        pred_l, target_l = pred[..., 0], target[..., 0]
-        pred_t, target_t = pred[..., 1], target[..., 1]
-        pred_r, target_r = pred[..., 2], target[..., 2]
-        pred_b, target_b = pred[..., 3], target[..., 3]
+    def forward(self, pred, target):
+        pred_l, pred_t, pred_r, pred_b = torch.unbind(pred, dim=-1)
+        target_l, target_t, target_r, target_b = torch.unbind(target, dim=-1)
         
         intersection_l = torch.min(pred_l, target_l)
         intersection_t = torch.min(pred_t, target_t)
         intersection_r = torch.min(pred_r, target_r)
         intersection_b = torch.min(pred_b, target_b)
         
-        intersection = (intersection_r + intersection_l) * (intersection_b + intersection_t)
-        predArea = (pred_r + pred_l) * (pred_b + pred_t)
-        targetArea = (target_r + target_l) * (target_b + target_t)
+        intersection = torch.multiply(
+            torch.add(intersection_r, intersection_l),
+            torch.add(intersection_b, intersection_t),
+        )
+        predArea = torch.multiply(
+            torch.add(pred_r, pred_l),
+            torch.add(pred_b, pred_t),
+        )
+        targetArea = torch.multiply(
+            torch.add(target_r, target_l),
+            torch.add(target_b, target_t),
+        )
         union = predArea + targetArea - intersection
         iou = intersection / (union + 1e-6)
-        
-        if self._type == 'iou':
-            return -torch.log(iou)
-        else:
-            raise NotImplemented()
+        return -1. * torch.log(iou)
 
 
 class FcosLoss(nn.Module):
@@ -70,7 +72,7 @@ class FcosLoss(nn.Module):
         self._cntr_loss = CenternessLoss()
         self._regr_loss = IoULoss()
 
-    def forward(self, pred, target, aggregator='sum'):     
+    def forward(self, pred, target, aggregator='sum'):
         aggregator = getattr(torch, aggregator)
         
         _, _, classes = target['classes'].shape
@@ -85,12 +87,11 @@ class FcosLoss(nn.Module):
         positive_samples = torch.sum(target_classes, axis=-1)  
         positive_mask = positive_samples > 0
         positive_samples_cnt = torch.sum(positive_mask)
-        if positive_samples_cnt == 0:
-            return None
+        assert positive_samples_cnt > 0, f"Targets dont contain any objects"
 
         class_loss = self._clf_loss(
             pred_classes,
-            target_classes.to(pred_classes.device),
+            target_classes,
         )
         class_loss = aggregator(class_loss) / positive_samples_cnt
 
@@ -101,18 +102,21 @@ class FcosLoss(nn.Module):
 
         centerness_loss = self._cntr_loss(
             pred_centerness_positive,
-            target_centerness_positive.to(pred_centerness_positive.device),
+            target_centerness_positive,
         )
         centerness_loss = aggregator(centerness_loss) / positive_samples_cnt
 
         regression_loss = self._regr_loss(
             pred_boxes_positive,
-            target_boxes_positive.to(pred_boxes_positive.device),
+            target_boxes_positive,
         )
         regression_loss = aggregator(regression_loss) / positive_samples_cnt
 
+        total_loss = class_loss + centerness_loss + regression_loss
+
         return {
-            'classification': class_loss,
-            'centerness': centerness_loss,
-            'regression': regression_loss,
+            'total': total_loss,
+            'classification': class_loss.detach().cpu().numpy(),
+            'centerness': centerness_loss.detach().cpu().numpy(),
+            'regression': regression_loss.detach().cpu().numpy(),
         }

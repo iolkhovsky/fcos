@@ -6,6 +6,7 @@ import pytest
 
 from fcos.encoder import box_centerness
 from dataset import VocLabelsCodec
+from dataset.loader import disbatch
 
 
 def test_box_centerness():
@@ -55,26 +56,26 @@ def test_encoder():
     img_res = (256, 256)
     encoder = FcosDetectionsEncoder(img_res, VocLabelsCodec())
 
-    test_boxes = [
-        torch.tensor([
+    test_boxes = torch.tensor(
+        [
             [50, 60, 110, 210],
             [30, 70, 40, 80],
             [100, 200, 110, 210],
-        ]),
-        torch.zeros([0, 4]),
-        torch.tensor([
             [0, 0, 256, 256],
             [180, 200, 200, 230],
-        ]),
-    ]
+        ],
+    )
 
-    test_labels = [
-        torch.tensor([0, 7, 10]),
-        torch.zeros([0, 1]),
-        torch.tensor([2, 3]),
-    ]
+    test_labels = torch.tensor(
+        [0, 7, 10] + [] + [2, 3]
+    )
 
-    encoded_gt = encoder(test_boxes, test_labels)
+    test_objects = torch.tensor(
+        [3, 0, 2]
+    )
+
+    encoded_gt = encoder(test_boxes, test_labels, test_objects)
+    test_boxes, test_labels = disbatch(test_boxes, test_labels, test_objects)
 
     classes_tensor = encoded_gt['classes']
     centerness_tensor = encoded_gt['centerness']
@@ -102,7 +103,7 @@ def test_encoder():
                 for x_pos in range(level_xsz):
                     plane_idx = y_pos * level_ysz + x_pos
                     scores = level_classes[img_idx, plane_idx, :]
-                    positive_position = torch.any(scores)
+                    positive_position = torch.any(torch.tensor(scores))
                     if positive_position:
                         assert len(test_boxes[img_idx]) > 0
 
@@ -127,5 +128,10 @@ def test_encoder():
                         
                         if smallest_box is not None:
                             target_cntr, target_ltrb = encoder._encode_box_at(smallest_box, level, y_pos, x_pos)
-                            assert torch.all(torch.eq(target_ltrb, torch.tensor(ltrb)))
-                            assert cntr == target_cntr
+                            assert torch.all(
+                                torch.isclose(
+                                    torch.tensor(target_ltrb, dtype=torch.float),
+                                    torch.tensor(ltrb, dtype=torch.float)
+                                )
+                            )
+                            assert cntr == pytest.approx(target_cntr)
