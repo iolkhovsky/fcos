@@ -12,7 +12,7 @@ class FocalLoss(nn.Module):
 
     def forward(self, pred, target):
         if self._apply_sigmoid:
-            pred = pred.sigmoid()
+            pred = F.sigmoid(pred)
         ce = F.binary_cross_entropy(pred, target, reduction='none')
         alpha = target * self._alpha + (1. - target) * (1. - self._alpha)
         pt = torch.where(target == 1,  pred, 1 - pred)
@@ -29,16 +29,15 @@ class CenternessLoss(nn.Module):
 
     def forward(self, pred, target):
         if self._apply_sigmoid:
-            pred = pred.sigmoid()
-        clamped_pred = self._clamper(pred)
-        clamped_target = self._clamper(target)
-        return self._criterion(clamped_pred, clamped_target)
+            pred = F.sigmoid(pred)
+        pred = self._clamper(pred)
+        target = self._clamper(target)
+        return self._criterion(pred, target)
 
 
 class IoULoss(nn.Module):
-    def __init__(self, type='iou'):
+    def __init__(self):
         super(IoULoss, self).__init__()
-        self._type=type
 
     def forward(self, pred, target):
         pred_l, pred_t, pred_r, pred_b = torch.unbind(pred, dim=-1)
@@ -63,11 +62,7 @@ class IoULoss(nn.Module):
         )
         union = predArea + targetArea - intersection
         iou = intersection / (union + 1e-6)
-        
-        if self._type == 'iou':
-            return -torch.log(iou)
-        else:
-            raise NotImplemented()
+        return -1. * torch.log(iou)
 
 
 class FcosLoss(nn.Module):
@@ -77,7 +72,7 @@ class FcosLoss(nn.Module):
         self._cntr_loss = CenternessLoss()
         self._regr_loss = IoULoss()
 
-    def forward(self, pred, target, aggregator='sum'):     
+    def forward(self, pred, target, aggregator='sum'):
         aggregator = getattr(torch, aggregator)
         
         _, _, classes = target['classes'].shape
