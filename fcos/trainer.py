@@ -1,3 +1,4 @@
+from common.torch_utils import *
 import datetime
 import gc
 import itertools
@@ -11,6 +12,7 @@ from torchmetrics.detection.mean_ap import MeanAveragePrecision
 import torchvision
 
 from dataset.visualization import visualize_batch
+from dataset.loader import disbatch
 from common.torch_utils import get_available_device
 from common.interval import IntervalManager
 
@@ -98,10 +100,11 @@ class FcosTrainer:
         target_grid = torchvision.utils.make_grid(target_images_tensors)
         writer.add_image(f'Target', target_grid, step)
 
-    def make_step(self, imgs, boxes, labels, val_iterator, global_step, epoch_idx):
+    def make_step(self, imgs, boxes, labels, objects_amount, val_iterator, global_step, epoch_idx):
         self.optimizer.zero_grad()
+        self.model.train()
 
-        targets = self.encoder(boxes, labels)
+        targets = self.encoder(boxes, labels, objects_amount)
         targets = {k: torch.tensor(v, device=self.device) for k, v in targets.items()}
         imgs = imgs.to(self.device)
 
@@ -127,9 +130,10 @@ class FcosTrainer:
 
         total_loss.backward()
         if self.grad_clip:
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip)
+            with torch.autograd.detect_anomaly():
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip)
         self.optimizer.step()
-        total_loss = total_loss.detach().cpu().numpy()
+        total_loss = tensor2numpy(total_loss)
 
         self.writer.add_scalar(f'Train/TotalLoss', total_loss, global_step)
         self.writer.add_scalar(f'Train/ClassLoss', loss['classification'], global_step)
@@ -144,22 +148,23 @@ class FcosTrainer:
         if self.valid_manager.check(global_step, epoch_idx):
             self.model.eval()
 
-            val_imgs, val_boxes, val_labels = next(val_iterator)
+            val_imgs, val_boxes, val_labels, val_objects_cnt = next(val_iterator)
             val_batch_size = len(val_imgs)
-            val_targets = self.encoder(val_boxes, val_labels)
+            val_targets = self.encoder(val_boxes, val_labels, val_objects_cnt)
             val_targets = {k: torch.tensor(v, device=self.device) for k, v in val_targets.items()}
             val_imgs = val_imgs.to(self.device)
 
             preprocessed_imgs, val_scales = self.model._preprocessor(val_imgs)
             core_outputs = self.model._core(preprocessed_imgs)
             val_loss = self.model._loss(pred=core_outputs, target=val_targets)
-            val_total_loss = val_loss['total'].detach().cpu().numpy()
+            val_total_loss = tensor2numpy(val_loss['total'])
 
             self.writer.add_scalar(f'Val/TotalLoss', val_total_loss, global_step)
             self.writer.add_scalar(f'Val/ClassLoss', val_loss['classification'], global_step)
             self.writer.add_scalar(f'Val/CenterLoss', val_loss['centerness'], global_step)
             self.writer.add_scalar(f'Val/RegressionLoss', val_loss['regression'], global_step)
 
+            val_boxes, val_labels = disbatch(val_boxes, val_labels, val_objects_cnt)
             val_threshold = 0.05
             val_predictions = self.model._postprocessor(core_outputs, val_scales)
             metrics_pred, metrics_target = [], []
@@ -167,15 +172,15 @@ class FcosTrainer:
                 mask = val_predictions['scores'][img_idx] > val_threshold
                 metrics_pred.append(
                     {
-                        'scores': val_predictions['scores'][img_idx][mask].to('cpu').detach(),
-                        'boxes': val_predictions['boxes'][img_idx][mask].to('cpu').detach(),
-                        'labels': val_predictions['classes'][img_idx][mask].to('cpu').detach(),
+                        'scores': tensor2cpu(val_predictions['scores'][img_idx][mask]),
+                        'boxes': tensor2cpu(val_predictions['boxes'][img_idx][mask]),
+                        'labels': tensor2cpu(val_predictions['classes'][img_idx][mask]),
                     }
                 )
                 metrics_target.append(
                     {
-                        'boxes': val_boxes[img_idx].to('cpu').detach(),
-                        'labels': val_labels[img_idx].to('cpu').detach(),
+                        'boxes': tensor2cpu(val_boxes[img_idx]),
+                        'labels': tensor2cpu(val_labels[img_idx]),
                     }
                 )
             self.metrics_evaluator.update(metrics_pred, metrics_target)
@@ -198,7 +203,6 @@ class FcosTrainer:
                 threshold=0.1,
             )
 
-            self.model.train()
         gc.collect()
         return total_loss
 
@@ -219,7 +223,7 @@ class FcosTrainer:
         self.writer = SummaryWriter(logs_path)
 
         val_iterator = itertools.cycle(iter(self.val_dataset))
-        img_batch, _, _ = next(iter(self.train_dataset))
+        img_batch, _, _, _ = next(iter(self.train_dataset))
         total_batches = len(self.train_dataset)
         total_steps = total_batches * len(img_batch)
 
@@ -231,9 +235,9 @@ class FcosTrainer:
         global_step = 0
         with tqdm(total=total_steps) as pbar:
             for epoch_idx in range(self.epochs):
-                for step, (imgs, boxes, labels) in enumerate(self.train_dataset):
+                for step, (imgs, boxes, labels, objects_amount) in enumerate(self.train_dataset):
                     try:
-                        total_loss = self.make_step(imgs, boxes, labels, val_iterator, global_step, epoch_idx)
+                        total_loss = self.make_step(imgs, boxes, labels, objects_amount, val_iterator, global_step, epoch_idx)
                     except Exception as e:
                         print(f"Error: Got an unhandled exception during epoch {epoch_idx} step {step}")
                         print(traceback.format_exc())

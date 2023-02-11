@@ -6,6 +6,7 @@ import pytest
 
 from fcos.encoder import box_centerness
 from dataset import VocLabelsCodec
+from dataset.loader import disbatch
 
 
 def test_box_centerness():
@@ -55,26 +56,26 @@ def test_encoder():
     img_res = (256, 256)
     encoder = FcosDetectionsEncoder(img_res, VocLabelsCodec())
 
-    test_boxes = [
-        torch.tensor([
+    test_boxes = torch.tensor(
+        [
             [50, 60, 110, 210],
             [30, 70, 40, 80],
             [100, 200, 110, 210],
-        ]),
-        torch.zeros([0, 4]),
-        torch.tensor([
             [0, 0, 256, 256],
             [180, 200, 200, 230],
-        ]),
-    ]
+        ],
+    )
 
-    test_labels = [
-        torch.tensor([0, 7, 10]),
-        torch.zeros([0, 1]),
-        torch.tensor([2, 3]),
-    ]
+    test_labels = torch.tensor(
+        [0, 7, 10] + [] + [2, 3]
+    )
 
-    encoded_gt = encoder(test_boxes, test_labels)
+    test_objects = torch.tensor(
+        [3, 0, 2]
+    )
+
+    encoded_gt = encoder(test_boxes, test_labels, test_objects)
+    test_boxes, test_labels = disbatch(test_boxes, test_labels, test_objects)
 
     classes_tensor = encoded_gt['classes']
     centerness_tensor = encoded_gt['centerness']

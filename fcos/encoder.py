@@ -1,5 +1,8 @@
 import numpy as np
 
+from dataset.loader import disbatch
+from common.torch_utils import tensor2numpy
+
 
 def box_centerness(ltrb_box):
     l, t, r, b = ltrb_box
@@ -55,8 +58,12 @@ class FcosDetectionsEncoder:
         )
         return box_centerness(ltrb_box), ltrb_box
 
-    def __call__(self, boxes, labels):
-        batch_size = len(boxes)
+    def __call__(self, boxes, labels, objects_amount):
+        boxes = tensor2numpy(boxes)
+        labels = tensor2numpy(labels)
+        objects_amount = tensor2numpy(objects_amount)
+
+        batch_size = len(objects_amount)
         classes = len(self._labels)
         h, w = self._res
         
@@ -70,11 +77,10 @@ class FcosDetectionsEncoder:
             name: np.zeros(shape=(batch_size, h // k, w // k, 4), dtype=np.float32) for name, k in self._level_scales.items()
         }
 
+        boxes, labels = disbatch(boxes, labels, objects_amount)
         for img_idx, (img_boxes, img_labels) in enumerate(zip(boxes, labels)):
-            if len(img_boxes) == 0:
+            if len(boxes) == 0:
                 continue
-            img_boxes = img_boxes.numpy()
-            img_labels = img_labels.numpy()
 
             x1, y1, x2, y2 = img_boxes[:, 0], img_boxes[:, 1], img_boxes[:, 2], img_boxes[:, 3]
             areas = (x2 - x1) * (y2 - y1)
