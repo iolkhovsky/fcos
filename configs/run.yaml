@@ -4,7 +4,7 @@ model:
   resolution:
     - 256
     - 256
-  checkpoint: "checkpoints/2023-02-1120-26-24-850172/fcos_ep_4_step_1491"
+  checkpoint: "checkpoints/release/fcos_ep_17_step_6159"
 stream:
   device: 0
 threshold: 0.3
